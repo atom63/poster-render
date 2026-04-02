@@ -220,6 +220,7 @@ function createSlideCanvas(theme) {
           pctx.fill();
         }
       }
+
     } else if (theme.pattern === "line-grid") {
       pctx.lineWidth = 0.75;
       for (let x = offsetX; x < W; x += spacing) {
@@ -228,12 +229,125 @@ function createSlideCanvas(theme) {
       for (let y = offsetY; y < H; y += spacing) {
         pctx.beginPath(); pctx.moveTo(0, y); pctx.lineTo(W, y); pctx.stroke();
       }
+
     } else if (theme.pattern === "diagonal") {
       pctx.lineWidth = 0.75;
       const diagOffset = (cx - cy) % spacing;
       for (let i = diagOffset - H; i < W + H; i += spacing) {
         pctx.beginPath(); pctx.moveTo(i, 0); pctx.lineTo(i + H, H); pctx.stroke();
       }
+
+    } else if (theme.pattern === "halftone") {
+      // Halftone: fine grid, dot size varies linearly
+      // patternShape: "circle" (default) | "square"
+      // patternBlend: composite op, e.g. "screen" | "overlay" | "multiply" | "source-over"
+      const maxR    = theme.patternDotSize ?? 5;
+      const minR    = 0.3;
+      const dir     = theme.patternHalftoneDir ?? "vertical";
+      const htSpace = theme.patternSpacing ?? 16;
+      const shape   = theme.patternShape ?? "circle";
+      const htOffX  = cx % htSpace;
+      const htOffY  = cy % htSpace;
+
+      for (let x = htOffX; x < W; x += htSpace) {
+        for (let y = htOffY; y < H; y += htSpace) {
+          let t;
+          if (dir === "horizontal")    t = x / W;
+          else if (dir === "diagonal") t = (x / W + y / H) / 2;
+          else                         t = y / H;
+          const r = minR + (maxR - minR) * t;
+          if (r < 0.2) continue;
+          if (shape === "square") {
+            const s = r * 1.8; // square side ≈ circle area
+            pctx.fillRect(x - s / 2, y - s / 2, s, s);
+          } else {
+            pctx.beginPath();
+            pctx.arc(x, y, r, 0, Math.PI * 2);
+            pctx.fill();
+          }
+        }
+      }
+
+    } else if (theme.pattern === "dither") {
+      // Bayer 4x4 ordered dither — fills canvas with noise texture
+      const bayer4 = [
+        [ 0,  8,  2, 10],
+        [12,  4, 14,  6],
+        [ 3, 11,  1,  9],
+        [15,  7, 13,  5],
+      ];
+      const cellSize = theme.patternSpacing ?? 3; // pixel size per dither cell
+      const threshold = theme.patternThreshold ?? 0.45; // 0–1, density of dots
+      for (let px = 0; px < W; px += cellSize) {
+        for (let py = 0; py < H; py += cellSize) {
+          const bx = Math.floor(px / cellSize) % 4;
+          const by = Math.floor(py / cellSize) % 4;
+          if (bayer4[by][bx] / 16 < threshold) {
+            pctx.fillRect(px, py, cellSize, cellSize);
+          }
+        }
+      }
+
+    } else if (theme.pattern === "ascii") {
+      // ASCII grid: fill background with characters, with optional random variation
+      const chars = theme.patternChars ?? "10 ·∙ □■";
+      const fontSize = theme.patternFontSize ?? 18;
+      const charSpacingX = theme.patternSpacing ?? 28;
+      const charSpacingY = Math.round(charSpacingX * 1.5);
+      const vary = theme.patternVary ?? true; // random char selection when true
+      pctx.font = `${fontSize}px "${TOKENS.fonts.mono.name}", monospace`;
+      pctx.textBaseline = "top";
+      const oX = cx % charSpacingX;
+      const oY = cy % charSpacingY;
+      // Simple LCG for deterministic randomness
+      let s2 = 9301;
+      const rand2 = () => { s2 = (s2 * 49297 + 233280) % 233280; return s2 / 233280; };
+      let row = 0;
+      for (let y = oY; y < H; y += charSpacingY) {
+        let col = 0;
+        for (let x = oX; x < W; x += charSpacingX) {
+          const ch = vary
+            ? chars[Math.floor(rand2() * chars.length)]
+            : chars[(row + col) % chars.length];
+          pctx.fillText(ch, x, y);
+          col++;
+        }
+        row++;
+      }
+
+    } else if (theme.pattern === "paper") {
+      // Paper texture: uniform fine grain — consistent alpha, no blotches
+      const lcg = (s) => (s * 1664525 + 1013904223) & 0xffffffff;
+      let s = 42;
+      const rand = () => { s = lcg(s); return (s >>> 0) / 0xffffffff; };
+
+      // Primary: fine horizontal fibers, short + thin
+      const fiberCount = theme.patternStrokes ?? 36000;
+      pctx.globalAlpha = 0.13;
+      for (let i = 0; i < fiberCount; i++) {
+        const x = rand() * W;
+        const y = rand() * H;
+        const len = 15 + rand() * 66;
+        const angle = (rand() - 0.5) * 0.10; // nearly perfectly horizontal
+        pctx.lineWidth = 0.1 + rand() * 0.18; // very thin
+        pctx.beginPath();
+        pctx.moveTo(x, y);
+        pctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+        pctx.stroke();
+      }
+
+      // Ultra-fine grain dots
+      const dotCount = theme.patternDots ?? 12000;
+      pctx.globalAlpha = 0.12;
+      for (let i = 0; i < dotCount; i++) {
+        const x = rand() * W;
+        const y = rand() * H;
+        pctx.beginPath();
+        pctx.arc(x, y, 0.15 + rand() * 0.25, 0, Math.PI * 2);
+        pctx.fill();
+      }
+
+      pctx.globalAlpha = 1;
     }
 
     // Apply gradient mask via destination-in
@@ -242,7 +356,47 @@ function createSlideCanvas(theme) {
     if (maskDir !== "none") {
       pctx.globalCompositeOperation = "destination-in";
 
-      if (maskDir === "radial") {
+      if (maskDir === "noise") {
+        // Value noise mask: smooth organic irregular fade
+        const noiseScale = theme.patternNoiseScale ?? 300; // lower = larger blobs
+        const noiseCanvas = createCanvas(W, H);
+        const nctx = noiseCanvas.getContext("2d");
+        const imgData = nctx.createImageData(W, H);
+        // Simple value noise: interpolate between random values on a coarse grid
+        const gridW = Math.ceil(W / noiseScale) + 2;
+        const gridH = Math.ceil(H / noiseScale) + 2;
+        // Seed grid
+        const grid = [];
+        let ns = 13371337;
+        const nrand = () => { ns = (ns * 1664525 + 1013904223) & 0xffffffff; return (ns >>> 0) / 0xffffffff; };
+        for (let gy = 0; gy < gridH; gy++) {
+          grid.push([]);
+          for (let gx = 0; gx < gridW; gx++) grid[gy].push(nrand());
+        }
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const smoothstep = (t) => t * t * (3 - 2 * t);
+        for (let py = 0; py < H; py++) {
+          for (let px = 0; px < W; px++) {
+            const gx = px / noiseScale;
+            const gy = py / noiseScale;
+            const ix = Math.floor(gx), iy = Math.floor(gy);
+            const fx = smoothstep(gx - ix), fy = smoothstep(gy - iy);
+            const v = lerp(
+              lerp(grid[iy][ix], grid[iy][ix+1], fx),
+              lerp(grid[iy+1][ix], grid[iy+1][ix+1], fx),
+              fy
+            );
+            const idx = (py * W + px) * 4;
+            const alpha = Math.round(v * 255);
+            imgData.data[idx]   = 0;
+            imgData.data[idx+1] = 0;
+            imgData.data[idx+2] = 0;
+            imgData.data[idx+3] = alpha;
+          }
+        }
+        nctx.putImageData(imgData, 0, 0);
+        pctx.drawImage(noiseCanvas, 0, 0);
+      } else if (maskDir === "radial") {
         // Radial: full opacity at center, fades to transparent at edges
         // Radius covers most of the canvas so more pattern is visible
         // Radius = half the shorter side so fade is clearly visible inside canvas
@@ -282,8 +436,11 @@ function createSlideCanvas(theme) {
     }
 
     // Composite pattern onto main canvas
+    // patternBlend: "source-over"(default) | "screen" | "overlay" | "multiply" | "soft-light" | "hard-light"
+    const blendMode = theme.patternBlend ?? "source-over";
     ctx.save();
     ctx.globalAlpha = opacity;
+    ctx.globalCompositeOperation = blendMode;
     ctx.drawImage(patCanvas, 0, 0);
     ctx.restore();
   }
