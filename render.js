@@ -17,121 +17,133 @@ const { prepareWithSegments, layoutNextLine } = await import(
   "@chenglou/pretext"
 );
 
+// --- Shared measurement canvas ---
+// Used for text measurement without needing a render ctx
+const _measureCanvas = createCanvas(2000, 100);
+const _measureCtx = _measureCanvas.getContext("2d");
+
+// --- Spacing Presets ---
+// Controls outer margin / bleed on all sides. Pick via content.json "spacing" or --spacing CLI flag.
+const SPACING_PRESETS = {
+  sm: { padX: 64,  padY: 64,  footerH: 48, sectionGap: 40, headlineToBody: 24 },
+  md: { padX: 100, padY: 100, footerH: 60, sectionGap: 56, headlineToBody: 32 },
+  lg: { padX: 140, padY: 140, footerH: 72, sectionGap: 72, headlineToBody: 44 },
+};
+
+// --- Color Palettes ---
+// Each palette defines the full color set. Override per-key via content.json "theme" block.
+// bg         — slide background
+// fg         — primary text (title, headline)
+// muted      — secondary text (subtitle, body)
+// subtle     — slide counter, decorative
+// accent     — highlight color (unused visually yet, but available for future use)
+const COLOR_PALETTES = {
+  light: {
+    background:      "#FAFAF8",
+    foreground:      "#09090B",
+    mutedForeground: "#71717A",
+    subtleForeground:"#A1A1AA",
+    accent:          "#09090B",
+  },
+  dark: {
+    background:      "#09090B",
+    foreground:      "#FAFAF8",
+    mutedForeground: "#A1A1AA",
+    subtleForeground:"#52525B",
+    accent:          "#FAFAF8",
+  },
+  warm: {
+    background:      "#FDF6ED",
+    foreground:      "#1A0E00",
+    mutedForeground: "#8A5A20",
+    subtleForeground:"#C49A60",
+    accent:          "#1A0E00",
+  },
+  slate: {
+    background:      "#0F172A",
+    backgroundGradient: ["#0F172A", "#1E1B4B"],
+    foreground:      "#E2E8F0",
+    mutedForeground: "#94A3B8",
+    subtleForeground:"#475569",
+    accent:          "#E2E8F0",
+  },
+  paper: {
+    background:      "#FEFCE8",
+    backgroundGradient: ["#FEFCE8", "#FEF08A"],
+    foreground:      "#1A1400",
+    mutedForeground: "#7A6E20",
+    subtleForeground:"#B8AA50",
+    accent:          "#1A1400",
+  },
+  teal: {
+    background:      "#E8F5F3",
+    foreground:      "#0D2B27",
+    mutedForeground: "#4A8C82",
+    subtleForeground:"#8ABDB6",
+    accent:          "#0D2B27",
+  },
+  midnight: {
+    background:      "#1A1A1A",
+    backgroundGradient: ["#1A1A1A", "#2D1B4E"],
+    foreground:      "#F0EDE6",
+    mutedForeground: "#A09890",
+    subtleForeground:"#585250",
+    accent:          "#F0EDE6",
+  },
+};
+
 // --- Design Tokens ---
 const TOKENS = {
-  // Canvas
   canvas: {
     width: 1080,
     height: 1350,
   },
-
-  // Spacing (base unit: 4px)
-  space: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-    "2xl": 48,
-    "3xl": 56,
-    "4xl": 72,
-    "5xl": 100,
-  },
-
-  // Layout zones
-  layout: {
-    padX: 100,       // horizontal padding
-    padTop: 100,     // top padding
-    padBottom: 100,  // bottom padding
-    headerH: 100,    // space reserved for slide header area
-    footerH: 60,     // space reserved for slide footer area
-  },
-
-  // Type scale (size in px, at 1080px canvas)
   type: {
-    title:    { size: 80, weight: "600", lineHeight: 100 },
-    subtitle: { size: 34, weight: "normal", lineHeight: 52 },
-    headline: { size: 52, weight: "600", lineHeight: 70 },
-    body:     { size: 34, weight: "normal", lineHeight: 51 },
-    small:    { size: 22, weight: "normal", lineHeight: 34 },
+    title:    { size: 108, weight: "800", lineHeight: 128 },
+    subtitle: { size: 34,  weight: "normal", lineHeight: 52 },
+    headline: { size: 52,  weight: "600",    lineHeight: 70 },
+    body:     { size: 34,  weight: "normal", lineHeight: 51 },
+    small:    { size: 22,  weight: "normal", lineHeight: 34 },
   },
-
-  // Rhythm (spacing between text blocks)
-  rhythm: {
-    headlineToBody: 32,       // gap between headline and body text
-    paragraphGap: 0.25,       // empty line multiplier (fraction of lineHeight)
-    sectionGap: 56,           // gap between sections (body → next headline)
-  },
-
-  // Font families
+  paragraphGap: 0.25,
   fonts: {
     sans:  { name: "Helvetica Neue", fallback: "Helvetica, Arial, sans-serif" },
     serif: { name: "Georgia",        fallback: "Times New Roman, serif" },
     mono:  { name: "Menlo",          fallback: "Consolas, monospace" },
   },
-
-  // Default theme (can be overridden by content.json)
+  // Default theme — palette + typography defaults
   theme: {
-    background:        "#FAFAF8",
-    foreground:        "#09090B",
-    mutedForeground:   "#71717A",
-    accent:            "#3B82F6",
-    fontFamily:        "sans",
-    handle:            "@yz_atom63",
-    subtleForeground:  "#A1A1AA",  // zinc-400 — counter on light slides
-    invertedBg:        "#09090B",  // CTA dark background
-    invertedFg:        "#FAFAF8",  // CTA light text
-    invertedSubtle:    "#52525B",  // zinc-600 — counter on dark slides
+    palette:    "light",   // key into COLOR_PALETTES
+    fontFamily: "sans",
+    spacing:    "md",
   },
 };
 
-// --- Derived constants (computed from TOKENS) ---
-const CONTENT_X = TOKENS.layout.padX;
-const CONTENT_WIDTH = TOKENS.canvas.width - TOKENS.layout.padX * 2;
-const CONTENT_TOP = TOKENS.layout.padTop + TOKENS.layout.headerH;
-const CONTENT_BOTTOM = TOKENS.canvas.height - TOKENS.layout.padBottom - TOKENS.layout.footerH;
-
-// --- Font registration ---
-// Maps filename patterns to font families.
-// node-canvas requires static-weight TTF/OTF; variable woff2 is not supported.
-// If static Geist weights are added to ./fonts/, they'll be picked up automatically.
-const FONT_FILE_PATTERNS = [
-  { pattern: "geistmono", family: TOKENS.fonts.mono.name },
-  { pattern: "geist", family: TOKENS.fonts.sans.name },
-  { pattern: "helvetica", family: "Helvetica Neue" },
-  { pattern: "georgia", family: "Georgia" },
-  { pattern: "menlo", family: "Menlo" },
-];
-
-function tryRegisterFonts() {
-  const fontsDir = path.resolve("./fonts");
-  if (!fs.existsSync(fontsDir)) return;
-  const files = fs.readdirSync(fontsDir);
-  for (const file of files) {
-    if (!/\.(ttf|otf)$/i.test(file)) continue;
-    const filePath = path.join(fontsDir, file);
-    const lower = file.toLowerCase();
-    const match = FONT_FILE_PATTERNS.find((p) => lower.includes(p.pattern));
-    if (!match) continue;
-    const weight = lower.includes("bold")
-      ? "bold"
-      : lower.includes("semibold") || lower.includes("600")
-        ? "600"
-        : "normal";
-    try {
-      registerFont(filePath, { family: match.family, weight });
-    } catch {
-      // skip unloadable fonts
-    }
-  }
+// --- Layout ---
+function resolveLayout(theme) {
+  const preset = SPACING_PRESETS[theme.spacing] || SPACING_PRESETS.md;
+  return {
+    padX:           preset.padX,
+    padY:           preset.padY,
+    footerH:        preset.footerH,
+    sectionGap:     preset.sectionGap,
+    headlineToBody: preset.headlineToBody,
+    // Derived
+    contentX:       preset.padX,
+    contentWidth:   TOKENS.canvas.width - preset.padX * 2,
+    contentTop:     preset.padY,
+    // contentBottom is where text must stop (above footer)
+    contentBottom:  TOKENS.canvas.height - preset.padY - preset.footerH,
+    // Counter sits vertically centered in the footer zone
+    counterY:       TOKENS.canvas.height - preset.padY - preset.footerH + Math.round(preset.footerH / 2) - Math.round(TOKENS.type.small.lineHeight / 2),
+  };
 }
 
-// --- Helpers ---
+// --- Font helpers ---
 function fontString(typeKey, fontFamily) {
   const t = TOKENS.type[typeKey];
   const fm = TOKENS.fonts[fontFamily] || TOKENS.fonts.sans;
   const family = `"${fm.name}", ${fm.fallback}`;
-  // Canvas font shorthand: weight must be a keyword or number
   const w = t.weight === "normal" ? "" : t.weight + " ";
   return `${w}${t.size}px ${family}`;
 }
@@ -141,304 +153,340 @@ function monoFontString(size) {
   return `${size}px "${fm.name}", ${fm.fallback}`;
 }
 
-function createSlideCanvas(bg) {
+// --- Font registration ---
+const FONT_FILE_PATTERNS = [
+  { pattern: "geistmono", family: TOKENS.fonts.mono.name },
+  { pattern: "geist",     family: TOKENS.fonts.sans.name },
+  { pattern: "helvetica", family: "Helvetica Neue" },
+  { pattern: "georgia",   family: "Georgia" },
+  { pattern: "menlo",     family: "Menlo" },
+];
+
+function tryRegisterFonts() {
+  const fontsDir = path.resolve("./fonts");
+  if (!fs.existsSync(fontsDir)) return;
+  for (const file of fs.readdirSync(fontsDir)) {
+    if (!/\.(ttf|otf)$/i.test(file)) continue;
+    const lower = file.toLowerCase();
+    const match = FONT_FILE_PATTERNS.find((p) => lower.includes(p.pattern));
+    if (!match) continue;
+    const weight = lower.includes("bold") ? "bold"
+      : (lower.includes("semibold") || lower.includes("600")) ? "600"
+      : "normal";
+    try { registerFont(path.join(fontsDir, file), { family: match.family, weight }); } catch {}
+  }
+}
+
+// --- Canvas creation ---
+// bg: solid color string, or gradient will be applied if theme.backgroundGradient is set
+function createSlideCanvas(theme) {
   const canvas = createCanvas(TOKENS.canvas.width, TOKENS.canvas.height);
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = bg;
+  if (theme.backgroundGradient && theme.backgroundGradient.length >= 2) {
+    const grad = ctx.createLinearGradient(0, 0, TOKENS.canvas.width, TOKENS.canvas.height);
+    const stops = theme.backgroundGradient;
+    stops.forEach((color, i) => grad.addColorStop(i / (stops.length - 1), color));
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = theme.background;
+  }
   ctx.fillRect(0, 0, TOKENS.canvas.width, TOKENS.canvas.height);
   ctx.textBaseline = "top";
   return { canvas, ctx };
 }
 
-function drawSlideCounter(ctx, theme, slideNum, totalSlides, isInverted) {
-  const text =
-    String(slideNum).padStart(2, "0") +
-    " / " +
-    String(totalSlides).padStart(2, "0");
-  ctx.fillStyle = isInverted ? theme.invertedSubtle : theme.subtleForeground;
+// --- Slide counter ---
+function drawSlideCounter(ctx, theme, layout, slideNum, totalSlides) {
+  const text = String(slideNum).padStart(2, "0") + " / " + String(totalSlides).padStart(2, "0");
+  ctx.fillStyle = theme.subtleForeground;
   ctx.font = monoFontString(TOKENS.type.small.size);
   const m = ctx.measureText(text);
-  ctx.fillText(text, TOKENS.canvas.width - TOKENS.layout.padX - m.width, TOKENS.canvas.height - TOKENS.layout.padBottom + 10);
+  ctx.fillText(text, TOKENS.canvas.width - layout.padX - m.width, layout.counterY);
+}
+
+// --- Text layout helpers ---
+function collectLines(text, font, maxWidth) {
+  const prepared = prepareWithSegments(text, font, { whiteSpace: "pre-wrap" });
+  const lines = [];
+  let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+  while (true) {
+    const line = layoutNextLine(prepared, cursor, maxWidth);
+    if (line === null) break;
+    lines.push(line);
+    cursor = line.end;
+  }
+  return lines;
+}
+
+function measureTextHeight(text, font, maxWidth, lineHeight) {
+  return collectLines(text, font, maxWidth).length * lineHeight;
+}
+
+// --- Anti-widow ---
+// Uses shared _measureCtx — no render ctx needed.
+function antiWidowWidth(text, font, maxWidth, { threshold = 0.35, step = 30, maxAttempts = 4 } = {}) {
+  _measureCtx.font = font;
+  let w = maxWidth;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const lines = collectLines(text, font, w);
+    if (lines.length <= 1) break;
+    const lastLineWidth = _measureCtx.measureText(lines[lines.length - 1].text).width;
+    if (lastLineWidth / w >= threshold) break;
+    w -= step;
+  }
+  return w;
+}
+
+// --- Section height (uses anti-widow width for accuracy) ---
+function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeight, bodyLineHeight, layout) {
+  let h = 0;
+  if (section.headline) {
+    const hw = antiWidowWidth(section.headline, headlineFont, layout.contentWidth);
+    h += measureTextHeight(section.headline, headlineFont, hw, headlineLineHeight);
+    h += layout.headlineToBody;
+  }
+  if (section.body) {
+    const bw = antiWidowWidth(section.body, bodyFont, layout.contentWidth);
+    const prepared = prepareWithSegments(section.body, bodyFont, { whiteSpace: "pre-wrap" });
+    let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+    while (true) {
+      const line = layoutNextLine(prepared, cursor, bw);
+      if (line === null) break;
+      const isEmpty = line.text.trim() === "";
+      h += isEmpty ? Math.round(bodyLineHeight * TOKENS.paragraphGap) : bodyLineHeight;
+      cursor = line.end;
+    }
+  }
+  return h;
 }
 
 // --- Slide renderers ---
-function renderCover(content, theme, totalSlides) {
-  const { canvas, ctx } = createSlideCanvas(theme.background);
-
-  // Title — left-aligned, vertically centered-ish
-  ctx.fillStyle = theme.foreground;
-  ctx.font = fontString("title", theme.fontFamily);
+function renderCover(content, theme, layout, totalSlides) {
+  const { canvas, ctx } = createSlideCanvas(theme);
   const titleFont = fontString("title", theme.fontFamily);
-  const titleLineHeight = TOKENS.type.title.lineHeight;
+  const subFont   = fontString("subtitle", theme.fontFamily);
+  const subtitleGap = Math.round(layout.headlineToBody * 1.5);
+  let y = layout.padY;
 
-  const titlePrepared = prepareWithSegments(content.cover.title, titleFont, {
-    whiteSpace: "pre-wrap",
-  });
+  // Title
+  const titleW = antiWidowWidth(content.cover.title, titleFont, layout.contentWidth);
+  ctx.fillStyle = theme.foreground;
+  ctx.font = titleFont;
   let cursor = { segmentIndex: 0, graphemeIndex: 0 };
-  let y = TOKENS.layout.padTop;
+  const titlePrepared = prepareWithSegments(content.cover.title, titleFont, { whiteSpace: "pre-wrap" });
   while (true) {
-    const line = layoutNextLine(titlePrepared, cursor, CONTENT_WIDTH);
+    const line = layoutNextLine(titlePrepared, cursor, titleW);
     if (line === null) break;
-    ctx.fillText(line.text, CONTENT_X, y);
+    ctx.fillText(line.text, layout.contentX, y);
     cursor = line.end;
-    y += titleLineHeight;
+    y += TOKENS.type.title.lineHeight;
   }
 
-  // Subtitle — 40px gap, muted color
+  // Subtitle
   if (content.cover.subtitle) {
-    y += 40;
+    y += subtitleGap;
+    const subW = antiWidowWidth(content.cover.subtitle, subFont, layout.contentWidth);
     ctx.fillStyle = theme.mutedForeground;
-    ctx.font = fontString("subtitle", theme.fontFamily);
-    const subFont = fontString("subtitle", theme.fontFamily);
-    const subPrepared = prepareWithSegments(content.cover.subtitle, subFont, {
-      whiteSpace: "pre-wrap",
-    });
+    ctx.font = subFont;
     cursor = { segmentIndex: 0, graphemeIndex: 0 };
-    const subLineHeight = TOKENS.type.subtitle.lineHeight;
+    const subPrepared = prepareWithSegments(content.cover.subtitle, subFont, { whiteSpace: "pre-wrap" });
     while (true) {
-      const line = layoutNextLine(subPrepared, cursor, CONTENT_WIDTH);
+      const line = layoutNextLine(subPrepared, cursor, subW);
       if (line === null) break;
-      ctx.fillText(line.text, CONTENT_X, y);
+      ctx.fillText(line.text, layout.contentX, y);
       cursor = line.end;
-      y += subLineHeight;
+      y += TOKENS.type.subtitle.lineHeight;
     }
   }
 
-  // Slide counter — bottom right
-  drawSlideCounter(ctx, theme, 1, totalSlides, false);
+  drawSlideCounter(ctx, theme, layout, 1, totalSlides);
   return canvas;
 }
 
-function renderCTA(content, theme, slideNum, totalSlides) {
-  // Dark inverted slide
-  const { canvas, ctx } = createSlideCanvas(theme.invertedBg);
-
-  // CTA text — left-aligned, headline size, white
-  ctx.fillStyle = theme.invertedFg;
+function renderCTA(content, theme, layout, slideNum, totalSlides) {
+  const { canvas, ctx } = createSlideCanvas(theme);
   const ctaFont = fontString("headline", theme.fontFamily);
-  ctx.font = ctaFont;
+  const ctaW = antiWidowWidth(content.cta, ctaFont, layout.contentWidth);
+  let y = layout.padY;
 
-  const ctaPrepared = prepareWithSegments(content.cta, ctaFont, {
-    whiteSpace: "pre-wrap",
-  });
+  ctx.fillStyle = theme.foreground;
+  ctx.font = ctaFont;
   let cursor = { segmentIndex: 0, graphemeIndex: 0 };
-  const lineHeight = TOKENS.type.headline.lineHeight;
-  let y = TOKENS.layout.padTop;
+  const ctaPrepared = prepareWithSegments(content.cta, ctaFont, { whiteSpace: "pre-wrap" });
   while (true) {
-    const line = layoutNextLine(ctaPrepared, cursor, CONTENT_WIDTH);
+    const line = layoutNextLine(ctaPrepared, cursor, ctaW);
     if (line === null) break;
-    ctx.fillText(line.text, CONTENT_X, y);
+    ctx.fillText(line.text, layout.contentX, y);
     cursor = line.end;
-    y += lineHeight;
+    y += TOKENS.type.headline.lineHeight;
   }
 
-  // Slide counter — bottom right, inverted
-  drawSlideCounter(ctx, theme, slideNum, totalSlides, true);
+  drawSlideCounter(ctx, theme, layout, slideNum, totalSlides);
   return canvas;
 }
 
-// --- Content slide rendering with auto-pagination ---
-function renderContentSlides(sections, theme, startSlideNum, totalSlides) {
+function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides) {
   const slides = [];
-  const bodyFont = fontString("body", theme.fontFamily);
+  const bodyFont     = fontString("body", theme.fontFamily);
   const headlineFont = fontString("headline", theme.fontFamily);
-  const bodyLineHeight = TOKENS.type.body.lineHeight;
-  const headlineLineHeight = 66;
-  const sectionGap = TOKENS.rhythm.sectionGap;
+  const bodyLH       = TOKENS.type.body.lineHeight;
+  const headLH       = TOKENS.type.headline.lineHeight;
+  const { sectionGap, headlineToBody } = layout;
+  const AVAILABLE_H  = layout.contentBottom - layout.contentTop;
 
-  let currentCanvas, currentCtx;
-  let y;
-  let slideNum = startSlideNum;
-
-  function openSlide() {
-    const { canvas, ctx } = createSlideCanvas(theme.background);
-    currentCanvas = canvas;
-    currentCtx = ctx;
-    y = TOKENS.layout.padTop + 80;
+  // Group sections into pages
+  const pages = [];
+  let currentPage = [], usedH = 0;
+  for (let si = 0; si < sections.length; si++) {
+    const secH = measureSectionHeight(sections[si], headlineFont, bodyFont, headLH, bodyLH, layout);
+    const gap = currentPage.length > 0 ? sectionGap : 0;
+    if (currentPage.length > 0 && usedH + gap + secH > AVAILABLE_H) {
+      pages.push(currentPage);
+      currentPage = [si];
+      usedH = secH;
+    } else {
+      currentPage.push(si);
+      usedH += gap + secH;
+    }
   }
+  if (currentPage.length > 0) pages.push(currentPage);
 
-  function closeSlide() {
-    drawSlideCounter(currentCtx, theme, slideNum, totalSlides, false);
-    slides.push(currentCanvas);
+  let slideNum = startSlideNum;
+  for (const pageIndices of pages) {
+    const { canvas, ctx } = createSlideCanvas(theme);
+    let y = layout.contentTop;
+
+    for (let i = 0; i < pageIndices.length; i++) {
+      const section = sections[pageIndices[i]];
+      if (i > 0) y += sectionGap;
+
+      if (section.headline) {
+        const headW = antiWidowWidth(section.headline, headlineFont, layout.contentWidth);
+        ctx.fillStyle = theme.foreground;
+        ctx.font = headlineFont;
+        let hCursor = { segmentIndex: 0, graphemeIndex: 0 };
+        const headPrepared = prepareWithSegments(section.headline, headlineFont, { whiteSpace: "pre-wrap" });
+        while (true) {
+          const line = layoutNextLine(headPrepared, hCursor, headW);
+          if (line === null) break;
+          ctx.fillText(line.text, layout.contentX, y);
+          hCursor = line.end;
+          y += headLH;
+        }
+        y += headlineToBody;
+      }
+
+      if (section.body) {
+        const bodyW = antiWidowWidth(section.body, bodyFont, layout.contentWidth);
+        // Body uses mutedForeground for visual hierarchy
+        ctx.fillStyle = theme.mutedForeground;
+        ctx.font = bodyFont;
+        let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
+        const bodyPrepared = prepareWithSegments(section.body, bodyFont, { whiteSpace: "pre-wrap" });
+        while (true) {
+          const line = layoutNextLine(bodyPrepared, bCursor, bodyW);
+          if (line === null) break;
+          const isEmpty = line.text.trim() === "";
+          if (!isEmpty) ctx.fillText(line.text, layout.contentX, y);
+          bCursor = line.end;
+          y += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+        }
+      }
+    }
+
+    drawSlideCounter(ctx, theme, layout, slideNum, totalSlides);
+    slides.push(canvas);
     slideNum++;
   }
-
-  openSlide();
-
-  for (let si = 0; si < sections.length; si++) {
-    const section = sections[si];
-
-    // Check if headline fits; if not, start new slide
-    if (section.headline) {
-      if (y + headlineLineHeight > CONTENT_BOTTOM) {
-        closeSlide();
-        openSlide();
-      }
-      // Headline — left-aligned, foreground color
-      currentCtx.fillStyle = theme.foreground;
-      currentCtx.font = headlineFont;
-
-      const headPrepared = prepareWithSegments(section.headline, headlineFont, {
-        whiteSpace: "pre-wrap",
-      });
-      let hCursor = { segmentIndex: 0, graphemeIndex: 0 };
-      while (true) {
-        const line = layoutNextLine(headPrepared, hCursor, CONTENT_WIDTH);
-        if (line === null) break;
-        if (y + headlineLineHeight > CONTENT_BOTTOM) {
-          closeSlide();
-          openSlide();
-          currentCtx.fillStyle = theme.foreground;
-          currentCtx.font = headlineFont;
-        }
-        currentCtx.fillText(line.text, CONTENT_X, y);
-        hCursor = line.end;
-        y += headlineLineHeight;
-      }
-
-      y += TOKENS.rhythm.headlineToBody;
-    }
-
-    // Body text with auto-pagination
-    if (section.body) {
-      currentCtx.fillStyle = theme.foreground;
-      currentCtx.font = bodyFont;
-
-      const bodyPrepared = prepareWithSegments(section.body, bodyFont, {
-        whiteSpace: "pre-wrap",
-      });
-      let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
-      while (true) {
-        const line = layoutNextLine(bodyPrepared, bCursor, CONTENT_WIDTH);
-        if (line === null) break;
-
-        if (y + bodyLineHeight > CONTENT_BOTTOM) {
-          closeSlide();
-          openSlide();
-          currentCtx.fillStyle = theme.foreground;
-          currentCtx.font = bodyFont;
-        }
-
-        const isEmpty = line.text.trim() === "";
-        if (!isEmpty) {
-          currentCtx.fillText(line.text, CONTENT_X, y);
-        }
-        bCursor = line.end;
-        y += isEmpty ? Math.round(bodyLineHeight * TOKENS.rhythm.paragraphGap) : bodyLineHeight;
-      }
-    }
-
-    // Gap between sections
-    if (si < sections.length - 1) {
-      y += sectionGap;
-    }
-  }
-
-  // Close final content slide
-  closeSlide();
 
   return slides;
 }
 
 // --- Main ---
 function main() {
-  const inputFile = process.argv[2];
+  // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
+  const args = process.argv.slice(2);
+  const inputFile = args.find(a => !a.startsWith("--"));
   if (!inputFile) {
-    console.error("Usage: node render.js <content.json>");
+    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|chalk] [--output <dir>]");
     process.exit(1);
   }
+
+  const spacingIdx = args.indexOf("--spacing");
+  const cliSpacing = spacingIdx !== -1 ? args[spacingIdx + 1] : null;
+
+  const paletteIdx = args.indexOf("--palette");
+  const cliPalette = paletteIdx !== -1 ? args[paletteIdx + 1] : null;
+
+  const outputIdx = args.indexOf("--output");
+  const cliOutput = outputIdx !== -1 ? args[outputIdx + 1] : "./output";
 
   tryRegisterFonts();
 
   const content = JSON.parse(fs.readFileSync(inputFile, "utf-8"));
-  const theme = { ...TOKENS.theme, ...content.theme };
 
-  // First pass: estimate total slides (cover + content + cta)
-  // We do a dry-run of content slides to count them
-  const bodyFont = fontString("body", theme.fontFamily);
-  const headlineFont = fontString("headline", theme.fontFamily);
-  const bodyLineHeight = TOKENS.type.body.lineHeight;
-  const headlineLineHeight = 66;
-  const sectionGap = TOKENS.rhythm.sectionGap;
-
-  let drySlideCount = 1; // starts at 1 content slide
-  let dryY = TOKENS.layout.padTop + 80;
-
-  for (let si = 0; si < content.sections.length; si++) {
-    const section = content.sections[si];
-
-    if (section.headline) {
-      const headPrepared = prepareWithSegments(section.headline, headlineFont, {
-        whiteSpace: "pre-wrap",
-      });
-      let hCursor = { segmentIndex: 0, graphemeIndex: 0 };
-      while (true) {
-        const line = layoutNextLine(headPrepared, hCursor, CONTENT_WIDTH);
-        if (line === null) break;
-        if (dryY + headlineLineHeight > CONTENT_BOTTOM) {
-          drySlideCount++;
-          dryY = TOKENS.layout.padTop + 80;
-        }
-        hCursor = line.end;
-        dryY += headlineLineHeight;
-      }
-      dryY += TOKENS.rhythm.headlineToBody;
-    }
-
-    if (section.body) {
-      const bodyPrepared = prepareWithSegments(section.body, bodyFont, {
-        whiteSpace: "pre-wrap",
-      });
-      let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
-      while (true) {
-        const line = layoutNextLine(bodyPrepared, bCursor, CONTENT_WIDTH);
-        if (line === null) break;
-        const isEmpty = line.text.trim() === "";
-        if (dryY + bodyLineHeight > CONTENT_BOTTOM) {
-          drySlideCount++;
-          dryY = TOKENS.layout.padTop + 80;
-        }
-        bCursor = line.end;
-        dryY += isEmpty ? Math.round(bodyLineHeight * TOKENS.rhythm.paragraphGap) : bodyLineHeight;
-      }
-    }
-
-    if (si < content.sections.length - 1) {
-      dryY += sectionGap;
-    }
+  // Merge priority (low → high):
+  //   TOKENS.theme defaults → palette colors → explicit color overrides in content.json
+  // content.json "palette" key selects the palette; CLI --palette overrides that.
+  // Only color keys explicitly set in content.json override the palette.
+  const contentTheme = content.theme || {};
+  const paletteName = cliPalette || contentTheme.palette || TOKENS.theme.palette;
+  const palette = COLOR_PALETTES[paletteName] || COLOR_PALETTES.light;
+  const COLOR_KEYS = ["background", "foreground", "mutedForeground", "subtleForeground", "accent"];
+  const theme = {
+    ...TOKENS.theme,
+    ...palette,                // palette sets all color keys
+    fontFamily: contentTheme.fontFamily || TOKENS.theme.fontFamily,
+    spacing:    contentTheme.spacing    || TOKENS.theme.spacing,
+    palette:    paletteName,
+  };
+  // Only apply explicit color overrides from content.json (not palette defaults)
+  for (const key of COLOR_KEYS) {
+    if (contentTheme[key]) theme[key] = contentTheme[key];
   }
 
-  const totalSlides = 1 + drySlideCount + 1; // cover + content slides + CTA
+  // CLI --spacing overrides content.json
+  if (cliSpacing && SPACING_PRESETS[cliSpacing]) theme.spacing = cliSpacing;
 
-  // Render all slides
+  const layout = resolveLayout(theme);
+
+  // Count content slides (dry run uses same measureSectionHeight with anti-widow widths)
+  const bodyFont     = fontString("body", theme.fontFamily);
+  const headlineFont = fontString("headline", theme.fontFamily);
+  const bodyLH       = TOKENS.type.body.lineHeight;
+  const headLH       = TOKENS.type.headline.lineHeight;
+  const AVAILABLE_H  = layout.contentBottom - layout.contentTop;
+
+  let dryCount = 0, dryUsed = 0, dryHas = false;
+  for (const section of content.sections) {
+    const secH = measureSectionHeight(section, headlineFont, bodyFont, headLH, bodyLH, layout);
+    const gap = dryHas ? layout.sectionGap : 0;
+    if (dryHas && dryUsed + gap + secH > AVAILABLE_H) {
+      dryCount++;
+      dryUsed = secH;
+    } else {
+      dryUsed += gap + secH;
+      dryHas = true;
+    }
+  }
+  if (dryHas) dryCount++;
+
+  const totalSlides = 1 + dryCount + 1;
+
   const allSlides = [];
+  allSlides.push(renderCover(content, theme, layout, totalSlides));
+  allSlides.push(...renderContentSlides(content.sections, theme, layout, 2, totalSlides));
+  allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides));
 
-  // Cover
-  allSlides.push(renderCover(content, theme, totalSlides));
-
-  // Content slides
-  const contentSlides = renderContentSlides(
-    content.sections,
-    theme,
-    2,
-    totalSlides
-  );
-  allSlides.push(...contentSlides);
-
-  // CTA
-  allSlides.push(renderCTA(content, theme, allSlides.length + 1, totalSlides));
-
-  // Write output
-  const outDir = path.resolve("./output");
+  const outDir = path.resolve(cliOutput);
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   for (let i = 0; i < allSlides.length; i++) {
     const num = String(i + 1).padStart(2, "0");
-    const outPath = path.join(outDir, `slide-${num}.png`);
-    fs.writeFileSync(outPath, allSlides[i].toBuffer("image/png"));
+    fs.writeFileSync(path.join(outDir, `slide-${num}.png`), allSlides[i].toBuffer("image/png"));
   }
 
-  console.log(`Rendered ${allSlides.length} slides to ./output/`);
+  console.log(`Rendered ${allSlides.length} slides → ${outDir}`);
 }
 
 main();

@@ -1,32 +1,30 @@
 {
   "theme": {
-    "background": "#FAFAF8",
-    "foreground": "#09090B",
-    "mutedForeground": "#71717A",
-    "accent": "#3B82F6",
+    "palette": "dark",
+    "spacing": "md",
     "fontFamily": "sans"
   },
   "cover": {
-    "title": "OpenClaw 用了两周",
-    "subtitle": "我用手机写完了一个网站"
+    "title": "macOS 本地大模型新选择",
+    "subtitle": "oMLX 上手指南"
   },
   "sections": [
     {
-      "headline": "每天早上九点半",
-      "body": "它自动把 Hacker News 和 Product Hunt 的摘要发给我。\n\n不用开 app，不用刷。\n\n信息被筛过一遍，脑子清净很多。"
+      "headline": "为什么选 oMLX",
+      "body": "苹果原生框架，专为 Apple Silicon 打造。\n\nM2 Pro 跑 7B 模型每秒 40+ tokens，比 Ollama 快近一半。\n\n16GB 内存也能流畅跑，不频繁 swap。"
     },
     {
-      "headline": "日历这块也配了",
-      "body": "我没去折腾 Google Calendar 的 API。\n\n直接让 OpenClaw 读写 Apple Calendar，再把 Google 账号 sync 进苹果日历。\n\n苹果当中转站。就这么简单。"
+      "headline": "和 Ollama / LM Studio 比",
+      "body": "oMLX：性能最强，适合有基础的用户。\n\nOllama：操作简单，适合需要 API 调用。\n\nLM Studio：图形界面，适合完全新手。"
     },
     {
-      "headline": "不是 Shortcut，不是 IFTTT",
-      "body": "OpenClaw 能调模型，能跑代码，还能自己判断该不该执行。\n\n它不是\u201c如果A就做B\u201d那种死板规则。它有上下文，有记忆，有判断力。\n\n你告诉它目标，它自己想办法。"
+      "headline": "3 步快速上手",
+      "body": "第一步：pip install mlx-lm\n\n第二步：从 Hugging Face 下载 .mlx 模型，推荐 Qwen2-7B 4bit 量化版，约 4GB。\n\n第三步：mlx_lm.generate 跑起来。"
     },
     {
-      "headline": "两周下来的感受",
-      "body": "我不再频繁切 app 了。很多事情在后台就被处理掉了。\n\n不是省了多少时间，而是脑子不累了。\n\n以前总觉得\u201c自动化\u201d是程序员的事。现在不是了。\n\nOpenClaw 让普通人也能拥有自己的系统。"
+      "headline": "常见坑",
+      "body": "内存不足：换 2bit 量化或更小模型。\n\n速度慢：确认下载的是 .mlx 格式，不是 GGUF。\n\nAPI 报错：升级 mlx-lm 到最新版。"
     }
   ],
-  "cta": "OpenClaw 不是玩具。\n它是你的个人系统。"
+  "cta": "Apple Silicon 跑本地模型\noMLX 是目前最优解\n10 分钟搞定"
 }
