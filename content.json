@@ -1,0 +1,32 @@
+{
+  "theme": {
+    "background": "#FAFAF8",
+    "foreground": "#09090B",
+    "mutedForeground": "#71717A",
+    "accent": "#3B82F6",
+    "fontFamily": "sans"
+  },
+  "cover": {
+    "title": "OpenClaw 用了两周",
+    "subtitle": "我用手机写完了一个网站"
+  },
+  "sections": [
+    {
+      "headline": "每天早上九点半",
+      "body": "它自动把 Hacker News 和 Product Hunt 的摘要发给我。\n\n不用开 app，不用刷。\n\n信息被筛过一遍，脑子清净很多。"
+    },
+    {
+      "headline": "日历这块也配了",
+      "body": "我没去折腾 Google Calendar 的 API。\n\n直接让 OpenClaw 读写 Apple Calendar，再把 Google 账号 sync 进苹果日历。\n\n苹果当中转站。就这么简单。"
+    },
+    {
+      "headline": "不是 Shortcut，不是 IFTTT",
+      "body": "OpenClaw 能调模型，能跑代码，还能自己判断该不该执行。\n\n它不是\u201c如果A就做B\u201d那种死板规则。它有上下文，有记忆，有判断力。\n\n你告诉它目标，它自己想办法。"
+    },
+    {
+      "headline": "两周下来的感受",
+      "body": "我不再频繁切 app 了。很多事情在后台就被处理掉了。\n\n不是省了多少时间，而是脑子不累了。\n\n以前总觉得\u201c自动化\u201d是程序员的事。现在不是了。\n\nOpenClaw 让普通人也能拥有自己的系统。"
+    }
+  ],
+  "cta": "OpenClaw 不是玩具。\n它是你的个人系统。"
+}

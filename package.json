@@ -1,0 +1,12 @@
+{
+  "name": "poster-render",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "render": "node render.js content.json"
+  },
+  "dependencies": {
+    "@chenglou/pretext": "^0.0.4",
+    "canvas": "^3.2.3"
+  }
+}
