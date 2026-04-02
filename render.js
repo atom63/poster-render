@@ -53,11 +53,12 @@ const COLOR_PALETTES = {
     accent:          "#FAFAF8",
   },
   warm: {
-    background:      "#FDF6ED",
-    foreground:      "#1A0E00",
-    mutedForeground: "#8A5A20",
-    subtleForeground:"#C49A60",
-    accent:          "#1A0E00",
+    background:      "#FEFCE8",
+    backgroundGradient: ["#FEFCE8", "#FEF08A"],
+    foreground:      "#1A1400",
+    mutedForeground: "#7A6E20",
+    subtleForeground:"#B8AA50",
+    accent:          "#1A1400",
   },
   slate: {
     background:      "#0F172A",
@@ -68,12 +69,11 @@ const COLOR_PALETTES = {
     accent:          "#E2E8F0",
   },
   paper: {
-    background:      "#FEFCE8",
-    backgroundGradient: ["#FEFCE8", "#FEF08A"],
-    foreground:      "#1A1400",
-    mutedForeground: "#7A6E20",
-    subtleForeground:"#B8AA50",
-    accent:          "#1A1400",
+    background:      "#FDF6ED",
+    foreground:      "#1A0E00",
+    mutedForeground: "#8A5A20",
+    subtleForeground:"#C49A60",
+    accent:          "#1A0E00",
   },
   teal: {
     background:      "#E8F5F3",
@@ -182,15 +182,112 @@ function tryRegisterFonts() {
 function createSlideCanvas(theme) {
   const canvas = createCanvas(TOKENS.canvas.width, TOKENS.canvas.height);
   const ctx = canvas.getContext("2d");
+  const W = TOKENS.canvas.width;
+  const H = TOKENS.canvas.height;
+
+  // Background (solid or gradient)
   if (theme.backgroundGradient && theme.backgroundGradient.length >= 2) {
-    const grad = ctx.createLinearGradient(0, 0, TOKENS.canvas.width, TOKENS.canvas.height);
-    const stops = theme.backgroundGradient;
-    stops.forEach((color, i) => grad.addColorStop(i / (stops.length - 1), color));
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    theme.backgroundGradient.forEach((color, i) => grad.addColorStop(i / (theme.backgroundGradient.length - 1), color));
     ctx.fillStyle = grad;
   } else {
     ctx.fillStyle = theme.background;
   }
-  ctx.fillRect(0, 0, TOKENS.canvas.width, TOKENS.canvas.height);
+  ctx.fillRect(0, 0, W, H);
+
+  // Background pattern overlay with optional gradient mask
+  if (theme.pattern && theme.pattern !== "none") {
+    const opacity = theme.patternOpacity ?? 0.08;
+    const color = theme.patternColor ?? theme.foreground;
+    const spacing = theme.patternSpacing ?? 48;
+    const cx = W / 2;
+    const cy = H / 2;
+    const offsetX = cx % spacing;
+    const offsetY = cy % spacing;
+
+    // Draw pattern onto offscreen canvas
+    const patCanvas = createCanvas(W, H);
+    const pctx = patCanvas.getContext("2d");
+    pctx.fillStyle = color;
+    pctx.strokeStyle = color;
+
+    if (theme.pattern === "dot-grid") {
+      const r = theme.patternDotSize ?? 1.5;
+      for (let x = offsetX; x < W; x += spacing) {
+        for (let y = offsetY; y < H; y += spacing) {
+          pctx.beginPath();
+          pctx.arc(x, y, r, 0, Math.PI * 2);
+          pctx.fill();
+        }
+      }
+    } else if (theme.pattern === "line-grid") {
+      pctx.lineWidth = 0.75;
+      for (let x = offsetX; x < W; x += spacing) {
+        pctx.beginPath(); pctx.moveTo(x, 0); pctx.lineTo(x, H); pctx.stroke();
+      }
+      for (let y = offsetY; y < H; y += spacing) {
+        pctx.beginPath(); pctx.moveTo(0, y); pctx.lineTo(W, y); pctx.stroke();
+      }
+    } else if (theme.pattern === "diagonal") {
+      pctx.lineWidth = 0.75;
+      const diagOffset = (cx - cy) % spacing;
+      for (let i = diagOffset - H; i < W + H; i += spacing) {
+        pctx.beginPath(); pctx.moveTo(i, 0); pctx.lineTo(i + H, H); pctx.stroke();
+      }
+    }
+
+    // Apply gradient mask via destination-in
+    // patternMask: "top" | "bottom" | "left" | "right" | "center-v" | "center-h" | "radial" | "none"
+    const maskDir = theme.patternMask ?? "bottom";
+    if (maskDir !== "none") {
+      pctx.globalCompositeOperation = "destination-in";
+
+      if (maskDir === "radial") {
+        // Radial: full opacity at center, fades to transparent at edges
+        // Radius covers most of the canvas so more pattern is visible
+        // Radius = half the shorter side so fade is clearly visible inside canvas
+        const radius = Math.min(W, H) * 0.55;
+        const grad = pctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        grad.addColorStop(0,   "rgba(0,0,0,1)");
+        grad.addColorStop(0.4, "rgba(0,0,0,1)");
+        grad.addColorStop(1,   "rgba(0,0,0,0)");
+        pctx.fillStyle = grad;
+      } else if (maskDir === "center-v") {
+        // Vertical: full in middle 60%, fade only at top/bottom edges
+        const grad = pctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0,   "rgba(0,0,0,0)");
+        grad.addColorStop(0.5, "rgba(0,0,0,1)");
+        grad.addColorStop(1,   "rgba(0,0,0,0)");
+        pctx.fillStyle = grad;
+      } else if (maskDir === "center-h") {
+        const grad = pctx.createLinearGradient(0, 0, W, 0);
+        grad.addColorStop(0,   "rgba(0,0,0,0)");
+        grad.addColorStop(0.5, "rgba(0,0,0,1)");
+        grad.addColorStop(1,   "rgba(0,0,0,0)");
+        pctx.fillStyle = grad;
+      } else {
+        // Directional linear: full → transparent
+        let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+        if      (maskDir === "bottom") { x0=0; y0=0;  x1=0; y1=H; }
+        else if (maskDir === "top")    { x0=0; y0=H;  x1=0; y1=0; }
+        else if (maskDir === "right")  { x0=0; y0=0;  x1=W; y1=0; }
+        else if (maskDir === "left")   { x0=W; y0=0;  x1=0; y1=0; }
+        const grad = pctx.createLinearGradient(x0, y0, x1, y1);
+        grad.addColorStop(0, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        pctx.fillStyle = grad;
+      }
+
+      pctx.fillRect(0, 0, W, H);
+    }
+
+    // Composite pattern onto main canvas
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    ctx.drawImage(patCanvas, 0, 0);
+    ctx.restore();
+  }
+
   ctx.textBaseline = "top";
   return { canvas, ctx };
 }
@@ -436,13 +533,12 @@ function main() {
   const theme = {
     ...TOKENS.theme,
     ...palette,                // palette sets all color keys
-    fontFamily: contentTheme.fontFamily || TOKENS.theme.fontFamily,
-    spacing:    contentTheme.spacing    || TOKENS.theme.spacing,
-    palette:    paletteName,
+    ...contentTheme,           // all content.json theme keys (pattern, spacing, fontFamily, etc.)
+    palette: paletteName,      // lock palette name
   };
-  // Only apply explicit color overrides from content.json (not palette defaults)
+  // Re-apply palette colors for any color key NOT explicitly set in content.json
   for (const key of COLOR_KEYS) {
-    if (contentTheme[key]) theme[key] = contentTheme[key];
+    if (!contentTheme[key]) theme[key] = palette[key];
   }
 
   // CLI --spacing overrides content.json
