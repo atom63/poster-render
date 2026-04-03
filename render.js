@@ -3,6 +3,67 @@ import { createHighlighter } from "shiki";
 import fs from "fs";
 import path from "path";
 
+// --- Twemoji PNG rendering for emoji (node-canvas/Cairo can't render color emoji) ---
+const EMOJI_CACHE_DIR = path.resolve("emoji-cache");
+
+// Regex to detect emoji characters (covers most common emoji ranges)
+const EMOJI_RE = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2702}-\u{27B0}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/u;
+
+function isEmoji(str) {
+  return EMOJI_RE.test(str);
+}
+
+function emojiToCDNUrl(emoji) {
+  const codepoints = [...emoji]
+    .map(c => c.codePointAt(0).toString(16))
+    .filter(cp => cp !== "fe0f")
+    .join("-");
+  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${codepoints}.png`;
+}
+
+// ASCII fallback mapping for when emoji download fails
+const EMOJI_ASCII_FALLBACK = {
+  "💡": "»", "⚠️": "!", "❗": "!", "‼️": "!!",
+  "✅": "✓", "❌": "✗", "🔥": "▲", "📌": "•",
+  "📝": "#", "🚀": ">", "💬": ">", "🔑": "*",
+  "ℹ️": "i", "⛔": "×", "🛑": "×", "👉": "→",
+  "✨": "*", "🎯": "○", "📎": "·", "🔗": "@",
+};
+
+const _emojiImageCache = {};
+
+async function loadEmojiImage(emoji) {
+  if (_emojiImageCache[emoji]) return _emojiImageCache[emoji];
+  if (!fs.existsSync(EMOJI_CACHE_DIR)) fs.mkdirSync(EMOJI_CACHE_DIR, { recursive: true });
+
+  const codepoints = [...emoji]
+    .map(c => c.codePointAt(0).toString(16))
+    .filter(cp => cp !== "fe0f")
+    .join("-");
+  const cachePath = path.join(EMOJI_CACHE_DIR, `${codepoints}.png`);
+
+  if (!fs.existsSync(cachePath)) {
+    const url = emojiToCDNUrl(emoji);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      fs.writeFileSync(cachePath, buf);
+    } catch (e) {
+      console.warn(`Failed to download emoji ${emoji}: ${e.message}`);
+      return null;
+    }
+  }
+
+  try {
+    const img = await loadImage(cachePath);
+    _emojiImageCache[emoji] = img;
+    return img;
+  } catch {
+    return null;
+  }
+}
+
 // --- Shiki syntax highlighter (lazy, cached by theme) ---
 const _shikiCache = {};
 const PALETTE_TO_SHIKI = {
@@ -36,7 +97,7 @@ async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fo
     const fm = TOKENS.fonts.mono;
     const font = `${fontSize}px "${fm.name}", ${fm.fallback}`;
     ctx.font = font;
-    ctx.textBaseline = "alphabetic";
+    ctx.textBaseline = "top";
 
     let curY = y;
     for (const line of tokens) {
@@ -245,14 +306,14 @@ function resolveLayout(theme) {
 function fontString(typeKey, fontFamily) {
   const t = TOKENS.type[typeKey];
   const fm = TOKENS.fonts[fontFamily] || TOKENS.fonts.sans;
-  const family = `"${fm.name}", ${fm.fallback}`;
+  const family = `"${fm.name}", ${fm.fallback}, "Apple Color Emoji"`;
   const w = t.weight === "normal" ? "" : t.weight + " ";
   return `${w}${t.size}px ${family}`;
 }
 
 function monoFontString(size) {
   const fm = TOKENS.fonts.mono;
-  return `${size}px "${fm.name}", ${fm.fallback}`;
+  return `${size}px "${fm.name}", ${fm.fallback}, "Apple Color Emoji"`;
 }
 
 // --- Font registration ---
@@ -620,7 +681,7 @@ function normalizeBody(body) {
 // Segment padding constants
 const SEGMENT_PAD = {
   callout: { top: 20, bottom: 20, left: 27, right: 16, borderWidth: 3 }, // left = border(3) + gap(24)
-  code:    { top: 16, bottom: 16, left: 16, right: 16 },
+  code:    { top: 10, bottom: 4, left: 14, right: 14 },
 };
 const SEGMENT_GAP = 16; // vertical gap between segments
 const SEGMENT_RADIUS = 12;
@@ -647,10 +708,15 @@ function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeigh
 
       if (seg.type === "callout") {
         const pad = SEGMENT_PAD.callout;
-        const innerW = layout.contentWidth - pad.left - pad.right;
-        const displayText = (seg.emoji ? seg.emoji + " " : "") + seg.content;
+        const emojiSize = Math.round(TOKENS.type.body.size * 1.2);
+        const emojiGap = 8;
+        const hasEmojiImg = seg.emoji && isEmoji(seg.emoji);
+        const emojiOffset = hasEmojiImg ? emojiSize + emojiGap : 0;
+        const innerW = layout.contentWidth - pad.left - pad.right - emojiOffset;
+        const displayText = (!hasEmojiImg && seg.emoji ? seg.emoji + " " : "") + seg.content;
         const textH = measureTextHeight(displayText, bodyFont, innerW, bodyLineHeight);
-        h += pad.top + textH + pad.bottom;
+        const minH = hasEmojiImg ? Math.max(textH, emojiSize) : textH;
+        h += pad.top + minH + pad.bottom;
       } else if (seg.type === "code") {
         const pad = SEGMENT_PAD.code;
         const innerW = layout.contentWidth - pad.left - pad.right;
@@ -888,15 +954,32 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
           if (seg.type === "callout") {
             const pad = SEGMENT_PAD.callout;
-            const innerW = layout.contentWidth - pad.left - pad.right;
-            const displayText = (seg.emoji ? seg.emoji + " " : "") + seg.content;
+            const emojiSize = Math.round(TOKENS.type.body.size * 1.2);
+            const emojiGap = 8;
+            const hasEmojiImg = seg.emoji && isEmoji(seg.emoji);
+            let emojiImg = null;
+            if (hasEmojiImg) {
+              emojiImg = await loadEmojiImage(seg.emoji);
+            }
+            const emojiOffset = emojiImg ? emojiSize + emojiGap : 0;
+            const innerW = layout.contentWidth - pad.left - pad.right - emojiOffset;
+            // If emoji image failed, fall back to ASCII prefix
+            const displayText = (!emojiImg && seg.emoji
+              ? (EMOJI_ASCII_FALLBACK[seg.emoji] || seg.emoji) + " "
+              : "") + seg.content;
             const textH = measureTextHeight(displayText, bodyFont, innerW, bodyLH);
-            const boxH = pad.top + textH + pad.bottom;
+            const minH = emojiImg ? Math.max(textH, emojiSize) : textH;
+            const boxH = pad.top + minH + pad.bottom;
 
-            // Background box
+            // Background box — solid fill to mask pattern underneath
             ctx.save();
+            ctx.fillStyle = theme.background;
+            ctx.globalAlpha = 1;
+            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+            ctx.fill();
+            // Tint overlay
             ctx.fillStyle = theme.foreground;
-            ctx.globalAlpha = 0.12;
+            ctx.globalAlpha = 0.18;
             roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
             ctx.fill();
             ctx.restore();
@@ -909,17 +992,25 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
             ctx.fill();
             ctx.restore();
 
+            // Emoji image
+            if (emojiImg) {
+              const emojiX = layout.contentX + pad.left;
+              const emojiY = y + pad.top + Math.round((bodyLH - emojiSize) / 2);
+              ctx.drawImage(emojiImg, emojiX, emojiY, emojiSize, emojiSize);
+            }
+
             // Text
             ctx.fillStyle = theme.mutedForeground;
             ctx.font = bodyFont;
             let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
             const prepared = prepareWithSegments(displayText, bodyFont, { whiteSpace: "pre-wrap" });
             let ty = y + pad.top;
+            const textX = layout.contentX + pad.left + emojiOffset;
             while (true) {
               const line = layoutNextLine(prepared, bCursor, innerW);
               if (line === null) break;
               const isEmpty = line.text.trim() === "";
-              if (!isEmpty) ctx.fillText(line.text, layout.contentX + pad.left, ty);
+              if (!isEmpty) ctx.fillText(line.text, textX, ty);
               bCursor = line.end;
               ty += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
             }
@@ -931,10 +1022,15 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
             const textH = measureCodeHeight(ctx, seg.content, TOKENS.type.body.size, bodyLH, innerW);
             const boxH = pad.top + textH + pad.bottom;
 
-            // Background box
+            // Background box — solid fill to mask pattern underneath
             ctx.save();
+            ctx.fillStyle = theme.background;
+            ctx.globalAlpha = 1;
+            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+            ctx.fill();
+            // Tint overlay
             ctx.fillStyle = theme.foreground;
-            ctx.globalAlpha = 0.08;
+            ctx.globalAlpha = 0.18;
             roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
             ctx.fill();
             ctx.restore();

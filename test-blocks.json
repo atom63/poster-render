@@ -1,0 +1,72 @@
+{
+  "theme": {
+    "palette": "slate",
+    "spacing": "sm",
+    "fontFamily": "mono",
+    "pattern": "ascii",
+    "patternChars": "01 ·∙ <>",
+    "patternFontSize": 14,
+    "patternSpacing": 22,
+    "patternOpacity": 0.18,
+    "patternVary": true,
+    "patternBlend": "source-over",
+    "patternMask": "none"
+  },
+  "cover": {
+    "title": "用 AI 管理你的工作流",
+    "subtitle": "副标题：一行简短说明，补充封面"
+  },
+  "sections": [
+    {
+      "headline": "第一步：为什么需要这个",
+      "body": [
+        {
+          "type": "text",
+          "content": "这是正文段落，介绍背景和痛点。可以写两三句话，换行用段落分隔。"
+        },
+        {
+          "type": "callout",
+          "content": "注意：这是一个 callout block，适合写提示或警告内容",
+          "emoji": "⚠️"
+        }
+      ]
+    },
+    {
+      "headline": "第二步：具体操作",
+      "body": [
+        {
+          "type": "list",
+          "content": "· 步骤一：注册账号\n· 步骤二：配置 API key\n· 步骤三：转发邮件"
+        },
+        {
+          "type": "code",
+          "content": "node notion-to-content.js <page-id> --output content.json",
+          "lang": "bash"
+        }
+      ]
+    },
+    {
+      "headline": "第三步：效果展示",
+      "body": [
+        {
+          "type": "text",
+          "content": "这里会插入截图（image block），解析后自动独占一页。\n\n「这是 quote block，适合引用一句话或重点结论」"
+        }
+      ]
+    },
+    {
+      "headline": "待办事项示例",
+      "body": [
+        {
+          "type": "list",
+          "content": "☑ 已完成的任务\n☐ 未完成的任务"
+        },
+        {
+          "type": "text",
+          "content": "\n\n关注我，获取更多 AI 效率技巧 🌀"
+        }
+      ]
+    }
+  ],
+  "cta": "关注我，获取更多 AI 效率技巧"
+}
