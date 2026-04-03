@@ -1,6 +1,108 @@
 import { createCanvas, registerFont, loadImage } from "canvas";
+import { createHighlighter } from "shiki";
 import fs from "fs";
 import path from "path";
+
+// --- Shiki syntax highlighter (lazy, cached by theme) ---
+const _shikiCache = {};
+const PALETTE_TO_SHIKI = {
+  dark: "github-dark",
+  midnight: "github-dark",
+  slate: "github-dark",
+  teal: "github-dark",
+  light: "github-light",
+  paper: "github-light",
+  warm: "github-light",
+};
+async function getShikiHighlighter(shikiTheme) {
+  if (!_shikiCache[shikiTheme]) {
+    _shikiCache[shikiTheme] = await createHighlighter({
+      themes: [shikiTheme],
+      langs: ["javascript", "typescript", "python", "rust", "go", "java", "c", "cpp", "html", "css", "json", "bash", "sql", "text"],
+    });
+  }
+  return _shikiCache[shikiTheme];
+}
+
+// Render Shiki-tokenized code onto canvas. Returns total height drawn.
+async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fontSize, lineHeight) {
+  const shikiTheme = PALETTE_TO_SHIKI[paletteName] || "github-dark";
+  try {
+    const highlighter = await getShikiHighlighter(shikiTheme);
+    const loadedLangs = highlighter.getLoadedLanguages();
+    const safeLang = loadedLangs.includes(lang) ? lang : "text";
+    const { tokens } = highlighter.codeToTokens(code, { lang: safeLang, theme: shikiTheme });
+
+    const fm = TOKENS.fonts.mono;
+    const font = `${fontSize}px "${fm.name}", ${fm.fallback}`;
+    ctx.font = font;
+    ctx.textBaseline = "alphabetic";
+
+    let curY = y;
+    for (const line of tokens) {
+      // Wrap long lines: measure tokens and break when exceeding maxWidth
+      let curX = x;
+      for (const token of line) {
+        const color = token.color || "#888";
+        const text = token.content;
+        // Split by characters for wrapping
+        for (let ci = 0; ci < text.length; ) {
+          // Find how many chars fit on current line
+          let chunk = text.slice(ci);
+          let cw = ctx.measureText(chunk).width;
+          if (curX + cw <= x + maxWidth || ci === 0 && curX === x) {
+            // Fits (or first char on line — always draw at least 1 char)
+            if (curX + cw > x + maxWidth) {
+              // Binary search for max fitting length
+              let lo = 1, hi = chunk.length;
+              while (lo < hi) {
+                const mid = (lo + hi + 1) >> 1;
+                if (ctx.measureText(chunk.slice(0, mid)).width + curX <= x + maxWidth) lo = mid;
+                else hi = mid - 1;
+              }
+              chunk = chunk.slice(0, lo);
+              cw = ctx.measureText(chunk).width;
+            }
+            ctx.fillStyle = color;
+            ctx.fillText(chunk, curX, curY);
+            curX += cw;
+            ci += chunk.length;
+          } else {
+            // Wrap to next line
+            curX = x;
+            curY += lineHeight;
+          }
+        }
+      }
+      curY += lineHeight;
+    }
+    return curY - y;
+  } catch {
+    // Fallback: plain monochrome render
+    return null;
+  }
+}
+
+// Measure code height accounting for line wrapping (used for both Shiki and fallback)
+function measureCodeHeight(ctx, code, fontSize, lineHeight, maxWidth) {
+  const fm = TOKENS.fonts.mono;
+  const font = `${fontSize}px "${fm.name}", ${fm.fallback}`;
+  ctx.save();
+  ctx.font = font;
+  const lines = code.split("\n");
+  let totalH = 0;
+  for (const line of lines) {
+    if (line.trim() === "") {
+      totalH += lineHeight;
+      continue;
+    }
+    const w = ctx.measureText(line).width;
+    const wrappedLines = Math.max(1, Math.ceil(w / maxWidth));
+    totalH += wrappedLines * lineHeight;
+  }
+  ctx.restore();
+  return totalH;
+}
 
 // Polyfill OffscreenCanvas for pretext (which uses it for text measurement)
 globalThis.OffscreenCanvas = class OffscreenCanvas {
@@ -552,7 +654,7 @@ function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeigh
       } else if (seg.type === "code") {
         const pad = SEGMENT_PAD.code;
         const innerW = layout.contentWidth - pad.left - pad.right;
-        const textH = measureTextHeight(seg.content, monoFont, innerW, bodyLineHeight);
+        const textH = measureCodeHeight(_measureCtx, seg.content, TOKENS.type.body.size, bodyLineHeight, innerW);
         h += pad.top + textH + pad.bottom;
       } else {
         // text or list — same as before
@@ -826,7 +928,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
           } else if (seg.type === "code") {
             const pad = SEGMENT_PAD.code;
             const innerW = layout.contentWidth - pad.left - pad.right;
-            const textH = measureTextHeight(seg.content, monoFont, innerW, bodyLH);
+            const textH = measureCodeHeight(ctx, seg.content, TOKENS.type.body.size, bodyLH, innerW);
             const boxH = pad.top + textH + pad.bottom;
 
             // Background box
@@ -837,19 +939,27 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
             ctx.fill();
             ctx.restore();
 
-            // Code text
-            ctx.fillStyle = theme.subtleForeground;
-            ctx.font = monoFont;
-            let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
-            const prepared = prepareWithSegments(seg.content, monoFont, { whiteSpace: "pre-wrap" });
-            let ty = y + pad.top;
-            while (true) {
-              const line = layoutNextLine(prepared, bCursor, innerW);
-              if (line === null) break;
-              const isEmpty = line.text.trim() === "";
-              if (!isEmpty) ctx.fillText(line.text, layout.contentX + pad.left, ty);
-              bCursor = line.end;
-              ty += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+            // Syntax-highlighted code via Shiki (falls back to plain mono)
+            const codeRendered = await renderCodeTokens(
+              ctx, seg.content, seg.lang || seg.language || "text",
+              layout.contentX + pad.left, y + pad.top,
+              innerW, theme.palette, TOKENS.type.body.size, bodyLH
+            );
+            if (codeRendered === null) {
+              // Fallback: plain monochrome
+              ctx.fillStyle = theme.subtleForeground;
+              ctx.font = monoFont;
+              let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
+              const prepared = prepareWithSegments(seg.content, monoFont, { whiteSpace: "pre-wrap" });
+              let ty = y + pad.top;
+              while (true) {
+                const line = layoutNextLine(prepared, bCursor, innerW);
+                if (line === null) break;
+                const isEmpty = line.text.trim() === "";
+                if (!isEmpty) ctx.fillText(line.text, layout.contentX + pad.left, ty);
+                bCursor = line.end;
+                ty += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+              }
             }
             y += boxH;
 
