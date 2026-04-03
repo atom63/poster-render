@@ -653,6 +653,35 @@ function measureTextHeight(text, font, maxWidth, lineHeight) {
   return collectLines(text, font, maxWidth).length * lineHeight;
 }
 
+// --- Card background helper (callout + code blocks) ---
+// Fills a rounded rect with cardBg solid color (or background + tint for dark themes),
+// then strokes a subtle border. Call before drawing content on top.
+function drawCardBg(ctx, theme, x, y, w, h, r = SEGMENT_RADIUS) {
+  ctx.save();
+  if (theme.cardBg) {
+    ctx.fillStyle = theme.cardBg;
+    ctx.globalAlpha = 1;
+    roundRect(ctx, x, y, w, h, r);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = theme.background;
+    ctx.globalAlpha = 1;
+    roundRect(ctx, x, y, w, h, r);
+    ctx.fill();
+    ctx.fillStyle = theme.foreground;
+    ctx.globalAlpha = theme.cardTint ?? 0.18;
+    roundRect(ctx, x, y, w, h, r);
+    ctx.fill();
+  }
+  // Subtle border
+  ctx.strokeStyle = theme.foreground;
+  ctx.globalAlpha = 0.1;
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, x, y, w, h, r);
+  ctx.stroke();
+  ctx.restore();
+}
+
 // --- Rounded rectangle path helper ---
 function roundRect(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
@@ -985,35 +1014,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
             const minH = emojiImg ? Math.max(textH, emojiSize) : textH;
             const boxH = pad.top + minH + pad.bottom;
 
-            // Background box — solid fill to mask pattern underneath
-            ctx.save();
-            if (theme.cardBg) {
-              // Light themes: use dedicated card color
-              ctx.fillStyle = theme.cardBg;
-              ctx.globalAlpha = 1;
-              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-              ctx.fill();
-            } else {
-              // Dark themes: background + tint overlay
-              ctx.fillStyle = theme.background;
-              ctx.globalAlpha = 1;
-              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-              ctx.fill();
-              ctx.fillStyle = theme.foreground;
-              ctx.globalAlpha = theme.cardTint ?? 0.18;
-              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-              ctx.fill();
-            }
-            ctx.restore();
-
-            // Card border (subtle outline)
-            ctx.save();
-            ctx.strokeStyle = theme.foreground;
-            ctx.globalAlpha = 0.1;
-            ctx.lineWidth = 1.5;
-            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-            ctx.stroke();
-            ctx.restore();
+                        drawCardBg(ctx, theme, layout.contentX, y, layout.contentWidth, boxH);
 
             // Left accent border
             ctx.save();
@@ -1053,33 +1054,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
             const textH = measureCodeHeight(ctx, seg.content, TOKENS.type.body.size, bodyLH, innerW);
             const boxH = pad.top + textH + pad.bottom;
 
-            // Background box — solid fill to mask pattern underneath
-            ctx.save();
-            if (theme.cardBg) {
-              ctx.fillStyle = theme.cardBg;
-              ctx.globalAlpha = 1;
-              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-              ctx.fill();
-            } else {
-              ctx.fillStyle = theme.background;
-              ctx.globalAlpha = 1;
-              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-              ctx.fill();
-              ctx.fillStyle = theme.foreground;
-              ctx.globalAlpha = theme.cardTint ?? 0.18;
-              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-              ctx.fill();
-            }
-            ctx.restore();
-
-            // Card border
-            ctx.save();
-            ctx.strokeStyle = theme.foreground;
-            ctx.globalAlpha = 0.1;
-            ctx.lineWidth = 1.5;
-            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-            ctx.stroke();
-            ctx.restore();
+            drawCardBg(ctx, theme, layout.contentX, y, layout.contentWidth, boxH);
 
             // Syntax-highlighted code via Shiki (falls back to plain mono)
             const codeRendered = await renderCodeTokens(
