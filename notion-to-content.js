@@ -132,10 +132,28 @@ async function parseNotion(pageId, key, screenshotsDir) {
 
   function flushSection() {
     if (!currentSection) return;
-    // Clean up body
+    // Clean up body segments
     if (currentSection.body) {
-      currentSection.body = currentSection.body.trim();
-      if (!currentSection.body) delete currentSection.body;
+      // Trim leading/trailing empty text segments
+      while (currentSection.body.length > 0) {
+        const first = currentSection.body[0];
+        if (first.type === "text" && !first.content.trim()) {
+          currentSection.body.shift();
+        } else {
+          first.content = first.content.replace(/^\n+/, "");
+          break;
+        }
+      }
+      while (currentSection.body.length > 0) {
+        const last = currentSection.body[currentSection.body.length - 1];
+        if (last.type === "text" && !last.content.trim()) {
+          currentSection.body.pop();
+        } else {
+          last.content = last.content.replace(/\n+$/, "");
+          break;
+        }
+      }
+      if (currentSection.body.length === 0) delete currentSection.body;
     }
     if (currentSection.headline || currentSection.body || currentSection.image) {
       sections.push(currentSection);
@@ -147,6 +165,23 @@ async function parseNotion(pageId, key, screenshotsDir) {
     if (!currentSection) currentSection = {};
   }
 
+  // Append text to the last text segment, or create a new one
+  function appendTextSegment(text, gap = "\n\n") {
+    if (!currentSection.body) currentSection.body = [];
+    const segments = currentSection.body;
+    const last = segments[segments.length - 1];
+    if (last && last.type === "text") {
+      last.content += gap + text;
+    } else {
+      segments.push({ type: "text", content: (segments.length > 0 ? gap : "") + text });
+    }
+  }
+
+  function appendSegment(seg) {
+    if (!currentSection.body) currentSection.body = [];
+    currentSection.body.push(seg);
+  }
+
   for (const block of blocks) {
     const type = block.type;
     const blockData = block[type] || {};
@@ -154,8 +189,11 @@ async function parseNotion(pageId, key, screenshotsDir) {
 
     // Skip empty blocks
     if (type === "paragraph" && !text.trim()) {
-      // Empty paragraph = paragraph gap (add \n\n to current body if exists)
-      if (currentSection?.body) currentSection.body += "\n\n";
+      // Empty paragraph = paragraph gap (add \n\n to current text segment if exists)
+      if (currentSection?.body?.length > 0) {
+        const last = currentSection.body[currentSection.body.length - 1];
+        if (last.type === "text") last.content += "\n\n";
+      }
       continue;
     }
 
@@ -191,21 +229,20 @@ async function parseNotion(pageId, key, screenshotsDir) {
         continue;
       }
       ensureSection();
-      if (currentSection.body) {
-        currentSection.body += "\n\n" + text;
-      } else {
-        currentSection.body = text;
-      }
+      appendTextSegment(text);
       continue;
     }
 
     if (type === "bulleted_list_item" || type === "numbered_list_item") {
       const prefix = type === "numbered_list_item" ? "• " : "· ";
       ensureSection();
-      if (currentSection.body) {
-        currentSection.body += "\n" + prefix + text;
+      // Accumulate list items into a list segment
+      const segments = currentSection.body || [];
+      const last = segments[segments.length - 1];
+      if (last && last.type === "list") {
+        last.content += "\n" + prefix + text;
       } else {
-        currentSection.body = prefix + text;
+        appendSegment({ type: "list", content: prefix + text });
       }
       continue;
     }
@@ -233,29 +270,17 @@ async function parseNotion(pageId, key, screenshotsDir) {
 
     if (type === "quote") {
       ensureSection();
-      const q = `「${text}」`;
-      if (currentSection.body) {
-        currentSection.body += "\n\n" + q;
-      } else {
-        currentSection.body = q;
-      }
+      appendTextSegment(`「${text}」`);
       continue;
     }
 
     if (type === "callout") {
       ensureSection();
-      // Extract emoji icon if present
       const icon = block.callout?.icon;
-      const emoji = icon?.type === "emoji" ? icon.emoji + " " : "💡 ";
-      const calloutText = emoji + text;
-      if (currentSection.body) {
-        currentSection.body += "\n\n" + calloutText;
-      } else {
-        currentSection.body = calloutText;
-      }
+      const emoji = icon?.type === "emoji" ? icon.emoji : "💡";
+      appendSegment({ type: "callout", content: text, emoji });
       // Also parse children of callout (if any)
       if (block.has_children) {
-        // Children fetched in a separate pass — mark for later
         block._calloutParent = true;
       }
       continue;
@@ -265,39 +290,28 @@ async function parseNotion(pageId, key, screenshotsDir) {
       ensureSection();
       const lang = block.code?.language || "";
       const codeText = richTextToPlain(block.code?.rich_text);
-      // Render as inline code block with language hint
-      const formatted = lang && lang !== "plain text"
-        ? `[${lang}]\n${codeText}`
-        : codeText;
-      if (currentSection.body) {
-        currentSection.body += "\n\n" + formatted;
-      } else {
-        currentSection.body = formatted;
-      }
+      const seg = { type: "code", content: codeText };
+      if (lang && lang !== "plain text") seg.lang = lang;
+      appendSegment(seg);
       continue;
     }
 
     if (type === "toggle") {
-      // Treat toggle summary as a sub-headline, children as body
       ensureSection();
-      const toggleText = "▸ " + text;
-      if (currentSection.body) {
-        currentSection.body += "\n\n" + toggleText;
-      } else {
-        currentSection.body = toggleText;
-      }
-      // Children will be fetched if has_children — skip for now (not worth recursive fetch)
+      appendTextSegment("▸ " + text);
       continue;
     }
 
     if (type === "to_do") {
       const checked = block.to_do?.checked ? "☑" : "☐";
       ensureSection();
-      const todoText = `${checked} ${text}`;
-      if (currentSection.body) {
-        currentSection.body += "\n" + todoText;
+      // Accumulate to_do items into a list segment
+      const segments = currentSection.body || [];
+      const last = segments[segments.length - 1];
+      if (last && last.type === "list") {
+        last.content += "\n" + `${checked} ${text}`;
       } else {
-        currentSection.body = todoText;
+        appendSegment({ type: "list", content: `${checked} ${text}` });
       }
       continue;
     }
@@ -321,12 +335,7 @@ async function parseNotion(pageId, key, screenshotsDir) {
           }
           if (columnTexts.length > 0) {
             ensureSection();
-            const joined = columnTexts.join(" · ");
-            if (currentSection.body) {
-              currentSection.body += "\n\n" + joined;
-            } else {
-              currentSection.body = joined;
-            }
+            appendTextSegment(columnTexts.join(" · "));
           }
         } catch (e) {
           console.error(`  Failed to parse column_list: ${e.message}`);
@@ -338,11 +347,7 @@ async function parseNotion(pageId, key, screenshotsDir) {
     // Fallback: any block with rich_text → body
     if (blockData.rich_text && text) {
       ensureSection();
-      if (currentSection.body) {
-        currentSection.body += "\n\n" + text;
-      } else {
-        currentSection.body = text;
-      }
+      appendTextSegment(text);
     }
   }
 
@@ -351,9 +356,13 @@ async function parseNotion(pageId, key, screenshotsDir) {
   // Heuristic: if last section has no headline and body is short → use as CTA
   if (sections.length > 0) {
     const last = sections[sections.length - 1];
-    if (!last.headline && !last.image && last.body && last.body.length < 60) {
-      cta = last.body;
-      sections.pop();
+    if (!last.headline && !last.image && last.body) {
+      // Flatten segments to check total text length
+      const totalText = last.body.map(s => s.content).join("");
+      if (totalText.length < 60) {
+        cta = totalText;
+        sections.pop();
+      }
     }
   }
 

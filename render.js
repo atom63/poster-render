@@ -476,6 +476,22 @@ function measureTextHeight(text, font, maxWidth, lineHeight) {
   return collectLines(text, font, maxWidth).length * lineHeight;
 }
 
+// --- Rounded rectangle path helper ---
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 // --- Anti-widow ---
 // Uses shared _measureCtx — no render ctx needed.
 function antiWidowWidth(text, font, maxWidth, { threshold = 0.35, step = 30, maxAttempts = 4 } = {}) {
@@ -491,6 +507,22 @@ function antiWidowWidth(text, font, maxWidth, { threshold = 0.35, step = 30, max
   return w;
 }
 
+// --- Normalize body to segments array (backward compat) ---
+function normalizeBody(body) {
+  if (!body) return null;
+  if (Array.isArray(body)) return body;
+  // Legacy string format → single text segment
+  return [{ type: "text", content: body }];
+}
+
+// Segment padding constants
+const SEGMENT_PAD = {
+  callout: { top: 20, bottom: 20, left: 27, right: 16, borderWidth: 3 }, // left = border(3) + gap(24)
+  code:    { top: 16, bottom: 16, left: 16, right: 16 },
+};
+const SEGMENT_GAP = 16; // vertical gap between segments
+const SEGMENT_RADIUS = 12;
+
 // --- Section height (uses anti-widow width for accuracy) ---
 // imageHeights: optional map of section index → pre-loaded image height (scaled to contentWidth)
 function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeight, bodyLineHeight, layout, imageH = 0) {
@@ -504,16 +536,37 @@ function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeigh
     h += measureTextHeight(section.headline, headlineFont, hw, headlineLineHeight);
     h += layout.headlineToBody;
   }
-  if (section.body) {
-    const bw = antiWidowWidth(section.body, bodyFont, layout.contentWidth);
-    const prepared = prepareWithSegments(section.body, bodyFont, { whiteSpace: "pre-wrap" });
-    let cursor = { segmentIndex: 0, graphemeIndex: 0 };
-    while (true) {
-      const line = layoutNextLine(prepared, cursor, bw);
-      if (line === null) break;
-      const isEmpty = line.text.trim() === "";
-      h += isEmpty ? Math.round(bodyLineHeight * TOKENS.paragraphGap) : bodyLineHeight;
-      cursor = line.end;
+  const segments = normalizeBody(section.body);
+  if (segments) {
+    const monoFont = monoFontString(TOKENS.type.body.size);
+    for (let si = 0; si < segments.length; si++) {
+      const seg = segments[si];
+      if (si > 0) h += SEGMENT_GAP;
+
+      if (seg.type === "callout") {
+        const pad = SEGMENT_PAD.callout;
+        const innerW = layout.contentWidth - pad.left - pad.right;
+        const displayText = (seg.emoji ? seg.emoji + " " : "") + seg.content;
+        const textH = measureTextHeight(displayText, bodyFont, innerW, bodyLineHeight);
+        h += pad.top + textH + pad.bottom;
+      } else if (seg.type === "code") {
+        const pad = SEGMENT_PAD.code;
+        const innerW = layout.contentWidth - pad.left - pad.right;
+        const textH = measureTextHeight(seg.content, monoFont, innerW, bodyLineHeight);
+        h += pad.top + textH + pad.bottom;
+      } else {
+        // text or list — same as before
+        const bw = antiWidowWidth(seg.content, bodyFont, layout.contentWidth);
+        const prepared = prepareWithSegments(seg.content, bodyFont, { whiteSpace: "pre-wrap" });
+        let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+        while (true) {
+          const line = layoutNextLine(prepared, cursor, bw);
+          if (line === null) break;
+          const isEmpty = line.text.trim() === "";
+          h += isEmpty ? Math.round(bodyLineHeight * TOKENS.paragraphGap) : bodyLineHeight;
+          cursor = line.end;
+        }
+      }
     }
   }
   return h;
@@ -724,19 +777,98 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
         y += headlineToBody;
       }
 
-      if (section.body) {
-        const bodyW = antiWidowWidth(section.body, bodyFont, layout.contentWidth);
-        ctx.fillStyle = theme.mutedForeground;
-        ctx.font = bodyFont;
-        let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
-        const bodyPrepared = prepareWithSegments(section.body, bodyFont, { whiteSpace: "pre-wrap" });
-        while (true) {
-          const line = layoutNextLine(bodyPrepared, bCursor, bodyW);
-          if (line === null) break;
-          const isEmpty = line.text.trim() === "";
-          if (!isEmpty) ctx.fillText(line.text, layout.contentX, y);
-          bCursor = line.end;
-          y += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+      const segments = normalizeBody(section.body);
+      if (segments) {
+        const monoFont = monoFontString(TOKENS.type.body.size);
+        for (let si = 0; si < segments.length; si++) {
+          const seg = segments[si];
+          if (si > 0) y += SEGMENT_GAP;
+
+          if (seg.type === "callout") {
+            const pad = SEGMENT_PAD.callout;
+            const innerW = layout.contentWidth - pad.left - pad.right;
+            const displayText = (seg.emoji ? seg.emoji + " " : "") + seg.content;
+            const textH = measureTextHeight(displayText, bodyFont, innerW, bodyLH);
+            const boxH = pad.top + textH + pad.bottom;
+
+            // Background box
+            ctx.save();
+            ctx.fillStyle = theme.foreground;
+            ctx.globalAlpha = 0.12;
+            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+            ctx.fill();
+            ctx.restore();
+
+            // Left accent border
+            ctx.save();
+            ctx.fillStyle = theme.foreground;
+            ctx.globalAlpha = 0.6;
+            roundRect(ctx, layout.contentX, y, pad.borderWidth, boxH, pad.borderWidth / 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Text
+            ctx.fillStyle = theme.mutedForeground;
+            ctx.font = bodyFont;
+            let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
+            const prepared = prepareWithSegments(displayText, bodyFont, { whiteSpace: "pre-wrap" });
+            let ty = y + pad.top;
+            while (true) {
+              const line = layoutNextLine(prepared, bCursor, innerW);
+              if (line === null) break;
+              const isEmpty = line.text.trim() === "";
+              if (!isEmpty) ctx.fillText(line.text, layout.contentX + pad.left, ty);
+              bCursor = line.end;
+              ty += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+            }
+            y += boxH;
+
+          } else if (seg.type === "code") {
+            const pad = SEGMENT_PAD.code;
+            const innerW = layout.contentWidth - pad.left - pad.right;
+            const textH = measureTextHeight(seg.content, monoFont, innerW, bodyLH);
+            const boxH = pad.top + textH + pad.bottom;
+
+            // Background box
+            ctx.save();
+            ctx.fillStyle = theme.foreground;
+            ctx.globalAlpha = 0.08;
+            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+            ctx.fill();
+            ctx.restore();
+
+            // Code text
+            ctx.fillStyle = theme.subtleForeground;
+            ctx.font = monoFont;
+            let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
+            const prepared = prepareWithSegments(seg.content, monoFont, { whiteSpace: "pre-wrap" });
+            let ty = y + pad.top;
+            while (true) {
+              const line = layoutNextLine(prepared, bCursor, innerW);
+              if (line === null) break;
+              const isEmpty = line.text.trim() === "";
+              if (!isEmpty) ctx.fillText(line.text, layout.contentX + pad.left, ty);
+              bCursor = line.end;
+              ty += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+            }
+            y += boxH;
+
+          } else {
+            // text or list — same as before
+            const bodyW = antiWidowWidth(seg.content, bodyFont, layout.contentWidth);
+            ctx.fillStyle = theme.mutedForeground;
+            ctx.font = bodyFont;
+            let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
+            const bodyPrepared = prepareWithSegments(seg.content, bodyFont, { whiteSpace: "pre-wrap" });
+            while (true) {
+              const line = layoutNextLine(bodyPrepared, bCursor, bodyW);
+              if (line === null) break;
+              const isEmpty = line.text.trim() === "";
+              if (!isEmpty) ctx.fillText(line.text, layout.contentX, y);
+              bCursor = line.end;
+              y += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+            }
+          }
         }
       }
     }
