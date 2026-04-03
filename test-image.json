@@ -22,18 +22,15 @@
       "body": "面试 panel 邀请邮件里塞了 5 个时间段。\n\n每个都有 Zoom 链接、面试官名字、备注。\n\n只能一条一条手动建日历，5 次粘贴，容易漏。"
     },
     {
-      "headline": "现在我直接转发给 AI",
-      "body": "发到 your-agent@agentmail.to\n（agentmail.to 注册时自己设置的地址）\n\nAI 读完 → 提取所有时间段 → 批量写入 Calendar\n\nZoom 链接 + 备注全带上，5 个事件一次搞定。"
+      "headline": "转发给 AI，它帮你全部写入",
+      "image": "./test-screenshot.jpg",
+      "imageAspect": "16/9",
+      "body": "发到 your-agent@agentmail.to，AI 读完批量写入 Calendar。"
     },
     {
       "headline": "配置只需 4 步",
       "body": "① agentmail.to 注册，创建专属 inbox\n② OpenClaw 配置 agentmail skill + API key\n③ 把邮件转发到这个地址\n④ AI 自动处理，批量写入 Calendar.app"
-    },
-    {
-      "headline": "底层怎么跑的",
-      "body": "读取：AgentMail API 拉取邮件正文\n写入：osascript 直接操作 Calendar.app\n同步：macOS 原生账号，无需 Google Calendar API\n\n不是规则匹配——AI 真的读懂邮件再处理。"
     }
   ],
-  "cta": "转发一封邮件\n剩下的交给 AI",
-  "tags": "#OpenClaw #AI效率工具 #自动化工作流 #AI助手 #效率工具 #vibecoding"
+  "cta": "转发一封邮件\n剩下的交给 AI"
 }
