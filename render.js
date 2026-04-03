@@ -1,4 +1,4 @@
-import { createCanvas, registerFont } from "canvas";
+import { createCanvas, registerFont, loadImage } from "canvas";
 import fs from "fs";
 import path from "path";
 
@@ -492,8 +492,13 @@ function antiWidowWidth(text, font, maxWidth, { threshold = 0.35, step = 30, max
 }
 
 // --- Section height (uses anti-widow width for accuracy) ---
-function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeight, bodyLineHeight, layout) {
+// imageHeights: optional map of section index → pre-loaded image height (scaled to contentWidth)
+function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeight, bodyLineHeight, layout, imageH = 0) {
   let h = 0;
+  // Image: full-width, plus gap below
+  if (imageH > 0) {
+    h += imageH + layout.headlineToBody;
+  }
   if (section.headline) {
     const hw = antiWidowWidth(section.headline, headlineFont, layout.contentWidth);
     h += measureTextHeight(section.headline, headlineFont, hw, headlineLineHeight);
@@ -512,6 +517,60 @@ function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeigh
     }
   }
   return h;
+}
+
+// --- Image loader & scaler ---
+// Returns { img, drawW, drawH } scaled to fit contentWidth, capped at maxH.
+// Returns null if path missing or fails.
+// aspectRatio: "16/9" | "4/3" | "1/1" | "free" (default)
+// imagePosition: "top" | "center" | "bottom" (default "top")
+// When set, image is cropped to that ratio at the given vertical position.
+async function loadSectionImage(imagePath, contentWidth, maxH = 700, aspectRatio = "free", imagePosition = "top") {
+  if (!imagePath) return null;
+  try {
+    const resolved = path.isAbsolute(imagePath) ? imagePath : path.resolve(imagePath);
+    const img = await loadImage(resolved);
+
+    // Compute crop region based on aspect ratio
+    let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height;
+    if (aspectRatio !== "free") {
+      const [rw, rh] = aspectRatio.split("/").map(Number);
+      const targetRatio = rw / rh;
+      const imgRatio = img.width / img.height;
+      if (imgRatio > targetRatio) {
+        // Too wide — crop sides (always center horizontally)
+        srcW = Math.round(img.height * targetRatio);
+        srcX = Math.round((img.width - srcW) / 2);
+      } else {
+        // Too tall — crop vertically by position
+        srcH = Math.round(img.width / targetRatio);
+        if (imagePosition === "center") {
+          srcY = Math.round((img.height - srcH) / 2);
+        } else if (imagePosition === "bottom") {
+          srcY = img.height - srcH;
+        } else {
+          srcY = 0; // top
+        }
+      }
+    }
+
+    // Scale cropped region to contentWidth
+    let scale = contentWidth / srcW;
+    let drawW = contentWidth;
+    let drawH = Math.round(srcH * scale);
+
+    // Cap height
+    if (drawH > maxH) {
+      scale = maxH / srcH;
+      drawH = maxH;
+      drawW = Math.round(srcW * scale);
+    }
+
+    return { img, srcX, srcY, srcW, srcH, drawW, drawH };
+  } catch (e) {
+    console.error(`[poster-render] Could not load image: ${imagePath} — ${e.message}`);
+    return null;
+  }
 }
 
 // --- Slide renderers ---
@@ -579,7 +638,7 @@ function renderCTA(content, theme, layout, slideNum, totalSlides) {
   return canvas;
 }
 
-function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides) {
+async function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides) {
   const slides = [];
   const bodyFont     = fontString("body", theme.fontFamily);
   const headlineFont = fontString("headline", theme.fontFamily);
@@ -588,13 +647,22 @@ function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides
   const { sectionGap, headlineToBody } = layout;
   const AVAILABLE_H  = layout.contentBottom - layout.contentTop;
 
-  // Group sections into pages
+  // Pre-load all section images
+  // maxH: cap at contentWidth so 1:1 images fill full width; 16:9 / 4:3 are naturally shorter
+  const loadedImages = await Promise.all(
+    sections.map(s => s.image ? loadSectionImage(s.image, layout.contentWidth, layout.contentWidth, s.imageAspect ?? "free", s.imagePosition ?? "top") : Promise.resolve(null))
+  );
+
+  // Group sections into pages (sections with images always get their own page)
   const pages = [];
   let currentPage = [], usedH = 0;
   for (let si = 0; si < sections.length; si++) {
-    const secH = measureSectionHeight(sections[si], headlineFont, bodyFont, headLH, bodyLH, layout);
+    const imgData = loadedImages[si];
+    const secH = measureSectionHeight(sections[si], headlineFont, bodyFont, headLH, bodyLH, layout, imgData?.drawH ?? 0);
     const gap = currentPage.length > 0 ? sectionGap : 0;
-    if (currentPage.length > 0 && usedH + gap + secH > AVAILABLE_H) {
+    // Sections with images always start a new page
+    const forceNewPage = imgData && currentPage.length > 0;
+    if (forceNewPage || (currentPage.length > 0 && usedH + gap + secH > AVAILABLE_H)) {
       pages.push(currentPage);
       currentPage = [si];
       usedH = secH;
@@ -612,7 +680,33 @@ function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides
 
     for (let i = 0; i < pageIndices.length; i++) {
       const section = sections[pageIndices[i]];
+      const imgData = loadedImages[pageIndices[i]];
       if (i > 0) y += sectionGap;
+
+      // Image: draw above headline, scaled to fit
+      if (imgData) {
+        // Optional rounded corners via clip
+        const radius = 16;
+        const x = layout.contentX;
+        const w = imgData.drawW;
+        const h = imgData.drawH;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + w - radius, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+        ctx.lineTo(x + w, y + h - radius);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+        ctx.lineTo(x + radius, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(imgData.img, imgData.srcX, imgData.srcY, imgData.srcW, imgData.srcH, x, y, w, h);
+        ctx.restore();
+        y += h + headlineToBody;
+      }
 
       if (section.headline) {
         const headW = antiWidowWidth(section.headline, headlineFont, layout.contentWidth);
@@ -632,7 +726,6 @@ function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides
 
       if (section.body) {
         const bodyW = antiWidowWidth(section.body, bodyFont, layout.contentWidth);
-        // Body uses mutedForeground for visual hierarchy
         ctx.fillStyle = theme.mutedForeground;
         ctx.font = bodyFont;
         let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
@@ -657,7 +750,7 @@ function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides
 }
 
 // --- Main ---
-function main() {
+async function main() {
   // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
   const args = process.argv.slice(2);
   const inputFile = args.find(a => !a.startsWith("--"));
@@ -703,18 +796,25 @@ function main() {
 
   const layout = resolveLayout(theme);
 
-  // Count content slides (dry run uses same measureSectionHeight with anti-widow widths)
+  // Pre-load images for dry-run height estimation
   const bodyFont     = fontString("body", theme.fontFamily);
   const headlineFont = fontString("headline", theme.fontFamily);
   const bodyLH       = TOKENS.type.body.lineHeight;
   const headLH       = TOKENS.type.headline.lineHeight;
   const AVAILABLE_H  = layout.contentBottom - layout.contentTop;
 
+  const loadedImages = await Promise.all(
+    content.sections.map(s => s.image ? loadSectionImage(s.image, layout.contentWidth, layout.contentWidth, s.imageAspect ?? "free", s.imagePosition ?? "top") : Promise.resolve(null))
+  );
+
+  // Dry-run: count slides (sections with images always get their own page)
   let dryCount = 0, dryUsed = 0, dryHas = false;
-  for (const section of content.sections) {
-    const secH = measureSectionHeight(section, headlineFont, bodyFont, headLH, bodyLH, layout);
+  for (let si = 0; si < content.sections.length; si++) {
+    const imgData = loadedImages[si];
+    const secH = measureSectionHeight(content.sections[si], headlineFont, bodyFont, headLH, bodyLH, layout, imgData?.drawH ?? 0);
     const gap = dryHas ? layout.sectionGap : 0;
-    if (dryHas && dryUsed + gap + secH > AVAILABLE_H) {
+    const forceNewPage = imgData && dryHas;
+    if (forceNewPage || (dryHas && dryUsed + gap + secH > AVAILABLE_H)) {
       dryCount++;
       dryUsed = secH;
     } else {
@@ -728,7 +828,7 @@ function main() {
 
   const allSlides = [];
   allSlides.push(renderCover(content, theme, layout, totalSlides));
-  allSlides.push(...renderContentSlides(content.sections, theme, layout, 2, totalSlides));
+  allSlides.push(...await renderContentSlides(content.sections, theme, layout, 2, totalSlides));
   allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides));
 
   const outDir = path.resolve(cliOutput);
