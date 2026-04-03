@@ -70,7 +70,7 @@ const PALETTE_TO_SHIKI = {
   dark: "github-dark",
   midnight: "github-dark",
   slate: "github-dark",
-  teal: "github-dark",
+  teal: "github-light",
   light: "github-light",
   paper: "github-light",
   warm: "github-light",
@@ -207,6 +207,8 @@ const COLOR_PALETTES = {
     mutedForeground: "#71717A",
     subtleForeground:"#A1A1AA",
     accent:          "#09090B",
+    cardBg:          "#F0F0EE", // subtle grey card for light bg
+    cardTint:        null,
   },
   dark: {
     background:      "#09090B",
@@ -214,6 +216,8 @@ const COLOR_PALETTES = {
     mutedForeground: "#A1A1AA",
     subtleForeground:"#52525B",
     accent:          "#FAFAF8",
+    cardBg:          "#2A2A2F",
+    cardTint:        null,
   },
   warm: {
     background:      "#FEFCE8",
@@ -222,6 +226,8 @@ const COLOR_PALETTES = {
     mutedForeground: "#7A6E20",
     subtleForeground:"#B8AA50",
     accent:          "#1A1400",
+    cardBg:          "#F5EDB8", // warm yellow tinted card
+    cardTint:        null,
   },
   slate: {
     background:      "#0F172A",
@@ -230,6 +236,8 @@ const COLOR_PALETTES = {
     mutedForeground: "#94A3B8",
     subtleForeground:"#475569",
     accent:          "#E2E8F0",
+    cardBg:          "#1E2A40",
+    cardTint:        null,
   },
   paper: {
     background:      "#FDF6ED",
@@ -237,6 +245,8 @@ const COLOR_PALETTES = {
     mutedForeground: "#8A5A20",
     subtleForeground:"#C49A60",
     accent:          "#1A0E00",
+    cardBg:          "#F0E5D0", // warm parchment card
+    cardTint:        null,
   },
   teal: {
     background:      "#E8F5F3",
@@ -244,6 +254,8 @@ const COLOR_PALETTES = {
     mutedForeground: "#4A8C82",
     subtleForeground:"#8ABDB6",
     accent:          "#0D2B27",
+    cardBg:          "#F0FAF8", // very light teal card
+    cardTint:        null,
   },
   midnight: {
     background:      "#1A1A1A",
@@ -252,6 +264,8 @@ const COLOR_PALETTES = {
     mutedForeground: "#A09890",
     subtleForeground:"#585250",
     accent:          "#F0EDE6",
+    cardBg:          "#28223A",
+    cardTint:        null,
   },
 };
 
@@ -973,15 +987,32 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
             // Background box — solid fill to mask pattern underneath
             ctx.save();
-            ctx.fillStyle = theme.background;
-            ctx.globalAlpha = 1;
+            if (theme.cardBg) {
+              // Light themes: use dedicated card color
+              ctx.fillStyle = theme.cardBg;
+              ctx.globalAlpha = 1;
+              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+              ctx.fill();
+            } else {
+              // Dark themes: background + tint overlay
+              ctx.fillStyle = theme.background;
+              ctx.globalAlpha = 1;
+              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+              ctx.fill();
+              ctx.fillStyle = theme.foreground;
+              ctx.globalAlpha = theme.cardTint ?? 0.18;
+              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+              ctx.fill();
+            }
+            ctx.restore();
+
+            // Card border (subtle outline)
+            ctx.save();
+            ctx.strokeStyle = theme.foreground;
+            ctx.globalAlpha = 0.1;
+            ctx.lineWidth = 1.5;
             roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-            ctx.fill();
-            // Tint overlay
-            ctx.fillStyle = theme.foreground;
-            ctx.globalAlpha = 0.18;
-            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-            ctx.fill();
+            ctx.stroke();
             ctx.restore();
 
             // Left accent border
@@ -1024,15 +1055,30 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
             // Background box — solid fill to mask pattern underneath
             ctx.save();
-            ctx.fillStyle = theme.background;
-            ctx.globalAlpha = 1;
+            if (theme.cardBg) {
+              ctx.fillStyle = theme.cardBg;
+              ctx.globalAlpha = 1;
+              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+              ctx.fill();
+            } else {
+              ctx.fillStyle = theme.background;
+              ctx.globalAlpha = 1;
+              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+              ctx.fill();
+              ctx.fillStyle = theme.foreground;
+              ctx.globalAlpha = theme.cardTint ?? 0.18;
+              roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
+              ctx.fill();
+            }
+            ctx.restore();
+
+            // Card border
+            ctx.save();
+            ctx.strokeStyle = theme.foreground;
+            ctx.globalAlpha = 0.1;
+            ctx.lineWidth = 1.5;
             roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-            ctx.fill();
-            // Tint overlay
-            ctx.fillStyle = theme.foreground;
-            ctx.globalAlpha = 0.18;
-            roundRect(ctx, layout.contentX, y, layout.contentWidth, boxH, SEGMENT_RADIUS);
-            ctx.fill();
+            ctx.stroke();
             ctx.restore();
 
             // Syntax-highlighted code via Shiki (falls back to plain mono)
