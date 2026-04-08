@@ -1,6 +1,6 @@
 {
   "theme": {
-    "palette": "slate",
+    "palette": "warm",
     "spacing": "md",
     "fontFamily": "mono",
     "pattern": "ascii",
@@ -14,7 +14,9 @@
   },
   "cover": {
     "title": "收到面试panel邮件，5个slot要加日历？",
-    "subtitle": "转发一封邮件，AI 帮你全部搞定"
+    "subtitle": "转发一封邮件，AI 帮你全部搞定",
+    "coverImage": "test-screenshot.jpg",
+    "coverStyle": "card"
   },
   "sections": [
     {
