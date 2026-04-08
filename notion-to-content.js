@@ -401,17 +401,20 @@ async function main() {
   const { cover, sections, cta } = await parseNotion(pageId, key, screenshotsDir);
 
   const defaultTheme = {
-    palette: "slate",
-    spacing: "sm",
-    fontFamily: "mono",
-    pattern: "ascii",
-    patternChars: "01 ·∙ <>",
-    patternFontSize: 14,
-    patternSpacing: 22,
-    patternOpacity: 0.18,
-    patternVary: true,
-    patternBlend: "source-over",
+    palette: "paper",
+    spacing: "md",
+    fontFamily: "sans",
+    pattern: "paper",
+    patternOpacity: 0.16,
+    patternBlend: "multiply",
+    patternSpacing: 48,
     patternMask: "none",
+    codeFontSize: 30,
+    codeLineHeight: 48,
+    codePadTop: 10,
+    codePadBottom: 6,
+    codePadLeft: 14,
+    codePadRight: 14,
   };
 
   const content = {

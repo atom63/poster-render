@@ -55,6 +55,11 @@ Outputs `slide-01.png`, `slide-02.png`, etc. to `./output/`.
 
 - `fontFamily`: `"sans"`, `"serif"`, or `"mono"`
 - Colors: any hex value for `background`, `foreground`, `mutedForeground`, `accent`
+- Code block styling (optional):
+  - `codeFontSize` (number, px)
+  - `codeLineHeight` (number, px)
+  - `codePadTop`, `codePadBottom`, `codePadLeft`, `codePadRight` (number, px)
+  - `codeFont` and palette still follow base theme font (`mono` font family is used for code).
 
 ## Slide structure
 

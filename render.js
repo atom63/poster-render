@@ -281,6 +281,7 @@ const TOKENS = {
     headline: { size: 52,  weight: "600",    lineHeight: 70 },
     body:     { size: 34,  weight: "normal", lineHeight: 51 },
     small:    { size: 22,  weight: "normal", lineHeight: 34 },
+    code:     { size: 30,  weight: "normal", lineHeight: 48 },
   },
   paragraphGap: 0.25,
   fonts: {
@@ -295,6 +296,11 @@ const TOKENS = {
     spacing:    "md",
   },
 };
+
+function resolveThemeNumber(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
 
 // --- Layout ---
 function resolveLayout(theme) {
@@ -730,8 +736,24 @@ const SEGMENT_GAP = 16; // vertical gap between segments
 const SEGMENT_RADIUS = 12;
 
 // --- Section height (uses anti-widow width for accuracy) ---
-// imageHeights: optional map of section index → pre-loaded image height (scaled to contentWidth)
-function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeight, bodyLineHeight, layout, imageH = 0) {
+// options: optional code style overrides and imageH is pre-loaded image height for layout
+function measureSectionHeight(
+  section,
+  headlineFont,
+  bodyFont,
+  headlineLineHeight,
+  bodyLineHeight,
+  layout,
+  options = {},
+  imageH = 0
+) {
+  const codePadTop = resolveThemeNumber(options.codePadTop, SEGMENT_PAD.code.top);
+  const codePadBottom = resolveThemeNumber(options.codePadBottom, SEGMENT_PAD.code.bottom);
+  const codePadLeft = resolveThemeNumber(options.codePadLeft, SEGMENT_PAD.code.left);
+  const codePadRight = resolveThemeNumber(options.codePadRight, SEGMENT_PAD.code.right);
+  const codeFontSize = resolveThemeNumber(options.codeFontSize, TOKENS.type.code.size);
+  const codeLineHeight = resolveThemeNumber(options.codeLineHeight, TOKENS.type.code.lineHeight);
+
   let h = 0;
   // Image: full-width, plus gap below
   if (imageH > 0) {
@@ -744,7 +766,6 @@ function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeigh
   }
   const segments = normalizeBody(section.body);
   if (segments) {
-    const monoFont = monoFontString(TOKENS.type.body.size);
     for (let si = 0; si < segments.length; si++) {
       const seg = segments[si];
       if (si > 0) h += SEGMENT_GAP;
@@ -761,10 +782,9 @@ function measureSectionHeight(section, headlineFont, bodyFont, headlineLineHeigh
         const minH = hasEmojiImg ? Math.max(textH, emojiSize) : textH;
         h += pad.top + minH + pad.bottom;
       } else if (seg.type === "code") {
-        const pad = SEGMENT_PAD.code;
-        const innerW = layout.contentWidth - pad.left - pad.right;
-        const textH = measureCodeHeight(_measureCtx, seg.content, TOKENS.type.body.size, bodyLineHeight, innerW);
-        h += pad.top + textH + pad.bottom;
+        const innerW = layout.contentWidth - codePadLeft - codePadRight;
+        const textH = measureCodeHeight(_measureCtx, seg.content, codeFontSize, codeLineHeight, innerW);
+        h += codePadTop + textH + codePadBottom;
       } else {
         // text or list — same as before
         const bw = antiWidowWidth(seg.content, bodyFont, layout.contentWidth);
@@ -904,12 +924,27 @@ function renderCTA(content, theme, layout, slideNum, totalSlides) {
 
 async function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides) {
   const slides = [];
-  const bodyFont     = fontString("body", theme.fontFamily);
+  const bodyFont = fontString("body", theme.fontFamily);
   const headlineFont = fontString("headline", theme.fontFamily);
-  const bodyLH       = TOKENS.type.body.lineHeight;
-  const headLH       = TOKENS.type.headline.lineHeight;
+  const bodyLH = TOKENS.type.body.lineHeight;
+  const headLH = TOKENS.type.headline.lineHeight;
   const { sectionGap, headlineToBody } = layout;
-  const AVAILABLE_H  = layout.contentBottom - layout.contentTop;
+  const AVAILABLE_H = layout.contentBottom - layout.contentTop;
+
+  const codeFontSize = resolveThemeNumber(theme.codeFontSize, TOKENS.type.code.size);
+  const codeLineHeight = resolveThemeNumber(theme.codeLineHeight, TOKENS.type.code.lineHeight);
+  const codePadTop = resolveThemeNumber(theme.codePadTop, SEGMENT_PAD.code.top);
+  const codePadBottom = resolveThemeNumber(theme.codePadBottom, SEGMENT_PAD.code.bottom);
+  const codePadLeft = resolveThemeNumber(theme.codePadLeft, SEGMENT_PAD.code.left);
+  const codePadRight = resolveThemeNumber(theme.codePadRight, SEGMENT_PAD.code.right);
+  const codeStyle = {
+    codeFontSize,
+    codeLineHeight,
+    codePadTop,
+    codePadBottom,
+    codePadLeft,
+    codePadRight,
+  };
 
   // Pre-load all section images
   // maxH: cap at contentWidth so 1:1 images fill full width; 16:9 / 4:3 are naturally shorter
@@ -922,7 +957,16 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
   let currentPage = [], usedH = 0;
   for (let si = 0; si < sections.length; si++) {
     const imgData = loadedImages[si];
-    const secH = measureSectionHeight(sections[si], headlineFont, bodyFont, headLH, bodyLH, layout, imgData?.drawH ?? 0);
+    const secH = measureSectionHeight(
+      sections[si],
+      headlineFont,
+      bodyFont,
+      headLH,
+      bodyLH,
+      layout,
+      codeStyle,
+      imgData?.drawH ?? 0
+    );
     const gap = currentPage.length > 0 ? sectionGap : 0;
     // Sections with images always start a new page
     const forceNewPage = imgData && currentPage.length > 0;
@@ -990,7 +1034,6 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
       const segments = normalizeBody(section.body);
       if (segments) {
-        const monoFont = monoFontString(TOKENS.type.body.size);
         for (let si = 0; si < segments.length; si++) {
           const seg = segments[si];
           if (si > 0) y += SEGMENT_GAP;
@@ -1014,7 +1057,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
             const minH = emojiImg ? Math.max(textH, emojiSize) : textH;
             const boxH = pad.top + minH + pad.bottom;
 
-                        drawCardBg(ctx, theme, layout.contentX, y, layout.contentWidth, boxH);
+            drawCardBg(ctx, theme, layout.contentX, y, layout.contentWidth, boxH);
 
             // Left accent border
             ctx.save();
@@ -1049,25 +1092,36 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
             y += boxH;
 
           } else if (seg.type === "code") {
-            const pad = SEGMENT_PAD.code;
+            const pad = {
+              top: codePadTop,
+              bottom: codePadBottom,
+              left: codePadLeft,
+              right: codePadRight,
+            };
             const innerW = layout.contentWidth - pad.left - pad.right;
-            const textH = measureCodeHeight(ctx, seg.content, TOKENS.type.body.size, bodyLH, innerW);
+            const textH = measureCodeHeight(ctx, seg.content, codeFontSize, codeLineHeight, innerW);
             const boxH = pad.top + textH + pad.bottom;
 
             drawCardBg(ctx, theme, layout.contentX, y, layout.contentWidth, boxH);
 
             // Syntax-highlighted code via Shiki (falls back to plain mono)
             const codeRendered = await renderCodeTokens(
-              ctx, seg.content, seg.lang || seg.language || "text",
-              layout.contentX + pad.left, y + pad.top,
-              innerW, theme.palette, TOKENS.type.body.size, bodyLH
+              ctx,
+              seg.content,
+              seg.lang || seg.language || "text",
+              layout.contentX + pad.left,
+              y + pad.top,
+              innerW,
+              theme.palette,
+              codeFontSize,
+              codeLineHeight
             );
             if (codeRendered === null) {
               // Fallback: plain monochrome
               ctx.fillStyle = theme.subtleForeground;
-              ctx.font = monoFont;
+              ctx.font = monoFontString(codeFontSize);
               let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
-              const prepared = prepareWithSegments(seg.content, monoFont, { whiteSpace: "pre-wrap" });
+              const prepared = prepareWithSegments(seg.content, monoFontString(codeFontSize), { whiteSpace: "pre-wrap" });
               let ty = y + pad.top;
               while (true) {
                 const line = layoutNextLine(prepared, bCursor, innerW);
@@ -1075,7 +1129,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
                 const isEmpty = line.text.trim() === "";
                 if (!isEmpty) ctx.fillText(line.text, layout.contentX + pad.left, ty);
                 bCursor = line.end;
-                ty += isEmpty ? Math.round(bodyLH * TOKENS.paragraphGap) : bodyLH;
+                ty += isEmpty ? Math.round(codeLineHeight * TOKENS.paragraphGap) : codeLineHeight;
               }
             }
             y += boxH;
@@ -1107,6 +1161,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
   return slides;
 }
+
 
 // --- Main ---
 async function main() {
@@ -1153,6 +1208,14 @@ async function main() {
   // CLI --spacing overrides content.json
   if (cliSpacing && SPACING_PRESETS[cliSpacing]) theme.spacing = cliSpacing;
 
+  // Code block style overrides
+  theme.codeFontSize = resolveThemeNumber(theme.codeFontSize, TOKENS.type.code.size);
+  theme.codeLineHeight = resolveThemeNumber(theme.codeLineHeight, TOKENS.type.code.lineHeight);
+  theme.codePadTop = resolveThemeNumber(theme.codePadTop, SEGMENT_PAD.code.top);
+  theme.codePadBottom = resolveThemeNumber(theme.codePadBottom, SEGMENT_PAD.code.bottom);
+  theme.codePadLeft = resolveThemeNumber(theme.codePadLeft, SEGMENT_PAD.code.left);
+  theme.codePadRight = resolveThemeNumber(theme.codePadRight, SEGMENT_PAD.code.right);
+
   const layout = resolveLayout(theme);
 
   // Pre-load images for dry-run height estimation
@@ -1162,6 +1225,15 @@ async function main() {
   const headLH       = TOKENS.type.headline.lineHeight;
   const AVAILABLE_H  = layout.contentBottom - layout.contentTop;
 
+  const codeStyle = {
+    codeFontSize: theme.codeFontSize,
+    codeLineHeight: theme.codeLineHeight,
+    codePadTop: theme.codePadTop,
+    codePadBottom: theme.codePadBottom,
+    codePadLeft: theme.codePadLeft,
+    codePadRight: theme.codePadRight,
+  };
+
   const loadedImages = await Promise.all(
     content.sections.map(s => s.image ? loadSectionImage(s.image, layout.contentWidth, layout.contentWidth, s.imageAspect ?? "free", s.imagePosition ?? "top") : Promise.resolve(null))
   );
@@ -1170,7 +1242,16 @@ async function main() {
   let dryCount = 0, dryUsed = 0, dryHas = false;
   for (let si = 0; si < content.sections.length; si++) {
     const imgData = loadedImages[si];
-    const secH = measureSectionHeight(content.sections[si], headlineFont, bodyFont, headLH, bodyLH, layout, imgData?.drawH ?? 0);
+    const secH = measureSectionHeight(
+      content.sections[si],
+      headlineFont,
+      bodyFont,
+      headLH,
+      bodyLH,
+      layout,
+      codeStyle,
+      imgData?.drawH ?? 0
+    );
     const gap = dryHas ? layout.sectionGap : 0;
     const forceNewPage = imgData && dryHas;
     if (forceNewPage || (dryHas && dryUsed + gap + secH > AVAILABLE_H)) {
