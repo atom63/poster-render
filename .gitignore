@@ -1,6 +1,24 @@
+# Dependencies
+node_modules/
+
+# Generated output
 output*/
 screenshots/
-*.test.json
+
+# Downloaded emoji cache
+emoji-cache/
+
+# Custom fonts (not redistributable)
+fonts/
+
+# Test fixtures & local images
 test-*.json
-node_modules/
+stress-test*.json
+test-screenshot.jpg
+*.test.json
+
+# macOS
+.DS_Store
+
+# Claude Code
 .claude/
