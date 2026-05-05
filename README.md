@@ -18,10 +18,10 @@ other content pipelines.
 
 ## Quick start
 
-1. Start from `sample-content.json` or create your own `content.json`:
+1. Start from `examples/sample-content.json` or create your own `content.json`:
 
 ```sh
-cp sample-content.json content.json
+cp examples/sample-content.json content.json
 ```
 
 2. Render it:
@@ -75,7 +75,7 @@ npm install
 
 ```sh
 npm run help    # show CLI usage
-npm run sample  # render sample-content.json into ./output-sample
+npm run sample  # render examples/sample-content.json into ./output-sample
 npm run lint    # basic syntax check for the CLI files
 ```
 
@@ -133,9 +133,9 @@ Use Markdown as the *working* format for agent iteration, then convert it to
 `content.json` with the adapter script before rendering.
 
 ```sh
-node markdown-to-content.js sample-markdown.md --output content.json
+node markdown-to-content.js examples/sample-markdown.md --output content.json
 # or
-npm run markdown:content -- sample-markdown.md --output content.json
+npm run markdown:content -- examples/sample-markdown.md --output content.json
 npm run render
 ```
 

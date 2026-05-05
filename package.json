@@ -33,13 +33,13 @@
     "markdown-to-content.js",
     "README.md",
     "LICENSE",
-    "sample-content.json",
-    "sample-markdown.md"
+    "examples/sample-content.json",
+    "examples/sample-markdown.md"
   ],
   "scripts": {
     "help": "node render.js --help",
     "render": "node render.js content.json",
-    "sample": "node render.js sample-content.json --output ./output-sample",
+    "sample": "node render.js examples/sample-content.json --output ./output-sample",
     "markdown:content": "node markdown-to-content.js",
     "lint": "node --check render.js && node --check markdown-to-content.js",
     "test": "node --test test/*.mjs"
