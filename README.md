@@ -99,7 +99,7 @@ Emoji are rendered through Twemoji PNGs when possible, but offline or blocked ne
 
 ```sh
 npm run render                          # renders content.json → ./output/
-node render.js <content.json> [--help] [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight] [--output <dir>] # explicit file + options
+node render.js <content.json> [--help] [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] # explicit file + options
 ```
 
 If installed globally or via `npx`, use:

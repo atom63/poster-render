@@ -291,6 +291,16 @@ const COLOR_PALETTES = {
     cardBg:          "#28223A",
     cardTint:        null,
   },
+  clay: {
+    background:      "#F6EEE9",
+    backgroundGradient: ["#F6EEE9", "#E7D1C8"],
+    foreground:      "#231612",
+    mutedForeground: "#6E5851",
+    subtleForeground:"#A6918A",
+    accent:          "#5C2E26",
+    cardBg:          "#EAD8D0",
+    cardTint:        null,
+  },
 };
 
 // --- Design Tokens ---
@@ -1730,7 +1740,7 @@ async function main() {
   // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
   const args = process.argv.slice(2);
   const printUsage = () => {
-    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight] [--output <dir>] [--help]");
+    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--help]");
   };
 
   const parseArgs = () => {
