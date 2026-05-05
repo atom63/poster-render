@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import fs from "fs";
 import path from "path";
+import { pathToFileURL } from "url";
 
 function usage() {
-  console.error(`Usage: node markdown-to-content.js <input.md> [--output content.json]\n\nMappings:\n  #   -> cover title\n  first paragraph after # -> cover subtitle\n  ##/### -> section headline\n  paragraphs -> body text\n  fenced code blocks -> code segments\n  --- -> section break`);
+  console.error(`Usage: node markdown-to-content.js <input.md> [--output content.json]\n\nSupported blocks:\n  # / ## / ###   -> cover + section headings\n  paragraphs     -> body text\n  > blockquotes  -> callout cards\n  - / 1. lists   -> bullet text blocks\n  [ ] task lists -> bullet text blocks\n  fenced code    -> code cards\n  ![img](path)   -> section image\n  | table |      -> code card\n  ---            -> section break`);
 }
 
 function parseArgs(argv) {
@@ -13,9 +14,17 @@ function parseArgs(argv) {
     if (arg === "-h" || arg === "--help") {
       args.help = true;
     } else if (arg === "--output") {
-      args.output = argv[++i];
+      const next = argv[++i];
+      if (!next || next.startsWith("-")) {
+        throw new Error("--output requires a file path");
+      }
+      args.output = next;
     } else if (!arg.startsWith("-") && !args.input) {
       args.input = arg;
+    } else if (!arg.startsWith("-")) {
+      throw new Error(`Unexpected extra argument: ${arg}`);
+    } else {
+      throw new Error(`Unknown flag: ${arg}`);
     }
   }
   return args;
@@ -36,15 +45,74 @@ function isHr(line) {
 }
 
 function isHeading(line) {
-  const m = line.match(/^(#{1,3})\s+(.*)$/);
+  const m = line.match(/^(#{1,6})\s+(.*)$/);
   if (!m) return null;
   return { level: m[1].length, text: m[2].trim() };
 }
 
-function flushParagraph(lines) {
-  const text = cleanText(lines.join(" "));
-  lines.length = 0;
-  return text;
+function isStandaloneImage(line) {
+  const m = line.match(/^\s*!\[([^\]]*)\]\((.*?)\)\s*$/);
+  if (!m) return null;
+  return { alt: m[1].trim(), src: m[2].trim() };
+}
+
+function isQuoteLine(line) {
+  const m = line.match(/^\s*>\s?(.*)$/);
+  if (!m) return null;
+  return m[1];
+}
+
+function parseListItem(line) {
+  const m = line.match(/^([ \t]*)(?:([-*+])|(\d+\.))(?:\s+\[([ xX])\])?\s+(.*)$/);
+  if (!m) return null;
+  const indent = m[1].replace(/\t/g, "  ");
+  const marker = m[2] || m[3];
+  const taskMark = m[4];
+  const content = m[5].trimEnd();
+
+  if (taskMark !== undefined) {
+    return {
+      kind: "task",
+      indent,
+      checked: /x/i.test(taskMark),
+      content,
+    };
+  }
+
+  if (/^\d+\.$/.test(marker)) {
+    return {
+      kind: "ordered",
+      indent,
+      number: marker.replace(/\.$/, ""),
+      content,
+    };
+  }
+
+  return {
+    kind: "unordered",
+    indent,
+    bullet: marker,
+    content,
+  };
+}
+
+function isTableSeparator(line) {
+  return /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/.test(line);
+}
+
+function isTableRow(line) {
+  return /\|/.test(line);
+}
+
+function stripFrontMatter(lines) {
+  if (lines.length < 3) return lines;
+  if (lines[0].trim() !== "---") return lines;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---") {
+      return lines.slice(i + 1);
+    }
+  }
+  return lines;
 }
 
 function ensureSection(targetRef) {
@@ -69,6 +137,32 @@ function appendCode(section, content, lang) {
   section.body.push({ type: "code", content, lang: lang && lang !== "text" ? lang : undefined });
 }
 
+function appendCallout(section, content) {
+  if (!content) return;
+  if (!section.body) section.body = [];
+  section.body.push({ type: "callout", content });
+}
+
+function appendList(section, content) {
+  if (!content) return;
+  if (!section.body) section.body = [];
+  section.body.push({ type: "list", content });
+}
+
+function formatListBlock(items) {
+  return items
+    .map((item) => {
+      if (item.kind === "task") {
+        return `${item.indent}${item.checked ? "☑" : "☐"} ${item.content}`;
+      }
+      if (item.kind === "ordered") {
+        return `${item.indent}${item.number}. ${item.content}`;
+      }
+      return `${item.indent}• ${item.content}`;
+    })
+    .join("\n");
+}
+
 function finalizeSection(section) {
   if (!section) return null;
   if (section.body && section.body.length === 0) delete section.body;
@@ -82,12 +176,12 @@ function finalizeSection(section) {
     });
     if (section.body.length === 0) delete section.body;
   }
-  if (!section.headline && !section.body) return null;
+  if (!section.headline && !section.body && !section.image) return null;
   return section;
 }
 
 function parseMarkdown(markdown, inputFile) {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const lines = stripFrontMatter(markdown.replace(/\r\n/g, "\n").split("\n"));
   const cover = { title: "", subtitle: "" };
   const sections = [];
   const introRef = { current: null };
@@ -95,61 +189,100 @@ function parseMarkdown(markdown, inputFile) {
   let titleSeen = false;
   let subtitleSeen = false;
   let sectionMode = false;
-  let paragraphLines = [];
+  let block = null;
   let inCode = false;
   let codeFence = null;
   let codeLang = "text";
   let codeLines = [];
 
-  const flushIntro = () => {
-    const finalized = finalizeSection(introRef.current);
+  const currentRef = () => (sectionMode ? activeRef : introRef);
+  const currentSection = () => ensureSection(currentRef());
+
+  const flushCurrentSection = () => {
+    const finalized = finalizeSection(currentRef().current);
     if (finalized) sections.push(finalized);
-    introRef.current = null;
+    currentRef().current = null;
   };
 
-  const flushActive = () => {
-    const finalized = finalizeSection(activeRef.current);
-    if (finalized) sections.push(finalized);
-    activeRef.current = null;
-  };
+  const flushBlock = () => {
+    if (!block) return;
+    const section = currentSection();
 
-  const routeText = (text) => {
-    if (!text) return;
-    if (!sectionMode) {
-      appendText(ensureSection(introRef), text);
-      return;
+    if (block.type === "paragraph") {
+      const text = cleanText(block.lines.join(" "));
+      if (titleSeen && !subtitleSeen && !sectionMode) {
+        cover.subtitle = text;
+        subtitleSeen = true;
+      } else {
+        appendText(section, text);
+      }
+    } else if (block.type === "quote") {
+      appendCallout(section, cleanText(block.lines.join("\n")));
+    } else if (block.type === "list") {
+      appendList(section, cleanText(formatListBlock(block.items)));
+    } else if (block.type === "table") {
+      appendCode(section, cleanText(block.lines.join("\n")), "text");
     }
-    appendText(ensureSection(activeRef), text);
+
+    block = null;
   };
 
-  const routeCode = (content, lang) => {
-    if (!content) return;
-    if (!sectionMode) {
-      appendCode(ensureSection(introRef), content, lang);
-      return;
+  const flushAndResetToIntro = () => {
+    flushBlock();
+    flushCurrentSection();
+    sectionMode = false;
+  };
+
+  const startSection = (headline) => {
+    flushBlock();
+    flushCurrentSection();
+    sectionMode = true;
+    activeRef.current = { headline };
+  };
+
+  const pushParagraphLine = (line) => {
+    if (!block || block.type !== "paragraph") {
+      flushBlock();
+      block = { type: "paragraph", lines: [] };
     }
-    appendCode(ensureSection(activeRef), content, lang);
+    block.lines.push(line);
   };
 
-  const flushParagraphIfAny = () => {
-    if (paragraphLines.length === 0) return;
-    const text = flushParagraph(paragraphLines);
-    if (!text) return;
-    if (titleSeen && !subtitleSeen && !sectionMode) {
-      cover.subtitle = text;
-      subtitleSeen = true;
-      return;
+  const pushQuoteLine = (content) => {
+    if (!block || block.type !== "quote") {
+      flushBlock();
+      block = { type: "quote", lines: [] };
     }
-    routeText(text);
+    block.lines.push(content);
   };
 
-  for (const rawLine of lines) {
-    const line = rawLine;
+  const pushListItem = (item) => {
+    if (!block || block.type !== "list" || block.kind !== item.kind) {
+      flushBlock();
+      block = { type: "list", kind: item.kind, items: [] };
+    }
+    block.items.push(item);
+  };
+
+  const pushTableLine = (line) => {
+    if (!block || block.type !== "table") {
+      flushBlock();
+      block = { type: "table", lines: [] };
+    }
+    block.lines.push(line);
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const nextLine = lines[i + 1] ?? "";
+    const trimmed = line.trim();
 
     if (inCode) {
       const fence = isFence(line);
       if (fence && fence.marker === codeFence) {
-        routeCode(codeLines.join("\n"), codeLang);
+        const codeText = codeLines.join("\n");
+        const section = currentSection();
+        appendCode(section, codeText, codeLang);
         inCode = false;
         codeFence = null;
         codeLang = "text";
@@ -160,14 +293,37 @@ function parseMarkdown(markdown, inputFile) {
       continue;
     }
 
-    if (/^\s*$/.test(line)) {
-      flushParagraphIfAny();
+    if (!trimmed) {
+      flushBlock();
+      continue;
+    }
+
+    const heading = isHeading(line);
+    if (heading) {
+      flushBlock();
+      if (heading.level === 1 && !titleSeen) {
+        cover.title = heading.text;
+        titleSeen = true;
+        continue;
+      }
+      if (!sectionMode) {
+        flushCurrentSection();
+        sectionMode = true;
+      } else {
+        flushCurrentSection();
+      }
+      activeRef.current = { headline: heading.text };
+      continue;
+    }
+
+    if (isHr(line)) {
+      flushAndResetToIntro();
       continue;
     }
 
     const fence = isFence(line);
     if (fence) {
-      flushParagraphIfAny();
+      flushBlock();
       inCode = true;
       codeFence = fence.marker;
       codeLang = fence.lang;
@@ -175,46 +331,49 @@ function parseMarkdown(markdown, inputFile) {
       continue;
     }
 
-    if (isHr(line)) {
-      flushParagraphIfAny();
-      flushIntro();
-      flushActive();
-      sectionMode = false;
+    const image = isStandaloneImage(line);
+    if (image) {
+      flushBlock();
+      currentSection().image = image.src;
       continue;
     }
 
-    const heading = isHeading(line);
-    if (heading) {
-      flushParagraphIfAny();
-      if (heading.level === 1 && !titleSeen) {
-        cover.title = heading.text;
-        titleSeen = true;
-        continue;
-      }
-
-      if (!sectionMode) {
-        flushIntro();
-        sectionMode = true;
-      } else {
-        flushActive();
-      }
-      activeRef.current = { headline: heading.text };
+    const quote = isQuoteLine(line);
+    if (quote !== null) {
+      pushQuoteLine(quote);
       continue;
     }
 
-    paragraphLines.push(line);
+    const listItem = parseListItem(line);
+    if (listItem) {
+      pushListItem(listItem);
+      continue;
+    }
+
+    if (isTableRow(line) && isTableSeparator(nextLine)) {
+      pushTableLine(line);
+      continue;
+    }
+
+    if (block && block.type === "table" && (isTableRow(line) || isTableSeparator(line))) {
+      pushTableLine(line);
+      continue;
+    }
+
+    pushParagraphLine(line);
   }
 
-  flushParagraphIfAny();
+  flushBlock();
 
   if (inCode) {
-    routeCode(codeLines.join("\n"), codeLang);
+    const section = currentSection();
+    appendCode(section, codeLines.join("\n"), codeLang);
   }
 
   if (!sectionMode) {
-    flushIntro();
+    flushCurrentSection();
   } else {
-    flushActive();
+    flushCurrentSection();
   }
 
   if (!cover.title) {
@@ -247,7 +406,13 @@ async function main() {
   console.error(`[markdown-to-content] wrote ${outputPath}`);
 }
 
-main().catch((err) => {
-  console.error(`[markdown-to-content] ${err?.stack || err?.message || err}`);
-  process.exit(1);
-});
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isMain) {
+  main().catch((err) => {
+    console.error(`[markdown-to-content] ${err?.stack || err?.message || err}`);
+    process.exit(1);
+  });
+}
+
+export { parseMarkdown };

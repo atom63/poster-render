@@ -143,8 +143,14 @@ Mapping rules are intentionally simple:
 - first paragraph after `#` → cover subtitle
 - `##` / `###` → section headlines
 - normal paragraphs → body text
-- fenced code blocks → code segments
+- `>` blockquotes → callout cards
+- `-`, `*`, `1.` lists → list cards
+- `- [ ]` / `- [x]` task lists → list cards
+- fenced code blocks → code cards
+- pipe tables → code cards
+- standalone `![img](path)` → section image
 - `---` → optional section break
+- YAML frontmatter → ignored
 
 Example loop for OpenClaw / Hermes / Claude-style workflows:
 
