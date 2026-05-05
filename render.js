@@ -732,6 +732,7 @@ function normalizeBody(body) {
 const SEGMENT_PAD = {
   callout: { top: 20, bottom: 20, left: 27, right: 16, borderWidth: 3 }, // left = border(3) + gap(24)
   code:    { top: 10, bottom: 4, left: 14, right: 14 },
+  table:   { top: 14, bottom: 14, left: 16, right: 16, cellX: 12, cellY: 9, grid: 1 },
 };
 const SEGMENT_GAP = 16; // vertical gap between segments
 const SEGMENT_RADIUS = 12;
@@ -786,6 +787,9 @@ function measureSectionHeight(
         const innerW = layout.contentWidth - codePadLeft - codePadRight;
         const textH = measureCodeHeight(_measureCtx, seg.content, codeFontSize, codeLineHeight, innerW);
         h += codePadTop + textH + codePadBottom;
+      } else if (seg.type === "table") {
+        const tableH = measureTableSegmentHeight(_measureCtx, seg, bodyFont, bodyLineHeight, layout.contentWidth);
+        h += tableH;
       } else {
         // text or list — same as before
         const bw = antiWidowWidth(seg.content, bodyFont, layout.contentWidth);
@@ -804,8 +808,327 @@ function measureSectionHeight(
   return h;
 }
 
-// --- Image loader & scaler ---
-// Returns { img, drawW, drawH } scaled to fit contentWidth, capped at maxH.
+function tableCellText(value) {
+  return value == null ? "" : String(value);
+}
+
+function fitTableColumnWidths(preferredWidths, availableWidth) {
+  if (preferredWidths.length === 0) return [];
+  const totalPreferred = preferredWidths.reduce((sum, width) => sum + width, 0);
+  if (totalPreferred <= availableWidth) return preferredWidths;
+
+  const minWidth = Math.max(56, Math.floor(availableWidth / preferredWidths.length));
+  let widths = preferredWidths.map((width) => Math.max(minWidth, Math.floor(width * availableWidth / totalPreferred)));
+  let total = widths.reduce((sum, width) => sum + width, 0);
+
+  if (total > availableWidth) {
+    widths = Array.from({ length: preferredWidths.length }, (_, index) => {
+      const base = Math.floor(availableWidth / preferredWidths.length);
+      return base + (index < availableWidth % preferredWidths.length ? 1 : 0);
+    });
+    total = widths.reduce((sum, width) => sum + width, 0);
+  }
+
+  while (total < availableWidth) {
+    for (let i = 0; i < widths.length && total < availableWidth; i++) {
+      widths[i]++;
+      total++;
+    }
+  }
+
+  return widths;
+}
+
+function measureTableLayout(ctx, table, font, lineHeight, maxWidth) {
+  const pad = SEGMENT_PAD.table;
+  const rows = [table.header || [], ...(table.rows || [])];
+  const columnCount = Math.max(0, ...rows.map((row) => row.length));
+  const grid = pad.grid;
+  const availableForColumns = Math.max(0, maxWidth - pad.left - pad.right - grid * (columnCount + 1));
+
+  const preferredWidths = Array.from({ length: columnCount }, (_, col) => {
+    let width = 0;
+    for (const row of rows) {
+      ctx.font = font;
+      width = Math.max(width, ctx.measureText(tableCellText(row[col])).width);
+    }
+    return Math.ceil(width) + pad.cellX * 2;
+  });
+
+  const widths = fitTableColumnWidths(preferredWidths, availableForColumns);
+  const innerWidths = widths.map((width) => Math.max(0, width - pad.cellX * 2));
+  const rowHeights = rows.map((row) => {
+    let maxHeight = lineHeight;
+    for (let col = 0; col < columnCount; col++) {
+      const text = tableCellText(row[col]);
+      const cellHeight = measureTextHeight(text, font, Math.max(1, innerWidths[col]), lineHeight);
+      maxHeight = Math.max(maxHeight, cellHeight);
+    }
+    return maxHeight + pad.cellY * 2;
+  });
+
+  const headerHeight = rowHeights[0] ?? lineHeight + pad.cellY * 2;
+  const bodyHeights = rowHeights.slice(1);
+  const totalHeight = pad.top + headerHeight + grid + bodyHeights.reduce((sum, height) => sum + grid + height, pad.bottom);
+
+  return {
+    pad,
+    grid,
+    widths,
+    innerWidths,
+    headerHeight,
+    rowHeights: bodyHeights,
+    totalHeight,
+    columnCount,
+  };
+}
+
+function splitTableIntoChunks(table, ctx, font, lineHeight, maxWidth, firstMaxHeight, nextMaxHeight) {
+  const layout = measureTableLayout(ctx, table, font, lineHeight, maxWidth);
+  const chunks = [];
+  const rows = table.rows || [];
+  let start = 0;
+  let chunkLimit = Math.max(1, firstMaxHeight);
+
+  if (rows.length === 0) {
+    return [{
+      type: "table",
+      header: table.header || [],
+      rows: [],
+      alignments: table.alignments || [],
+      _tableLayout: layout,
+    }];
+  }
+
+  while (start < rows.length) {
+    let end = start;
+    let chunkHeight = layout.pad.top + layout.headerHeight + layout.grid + layout.pad.bottom;
+    while (end < rows.length) {
+      const nextHeight = layout.rowHeights[end] + layout.grid;
+      if (end > start && chunkHeight + nextHeight > chunkLimit) break;
+      if (end === start && chunkHeight + nextHeight > chunkLimit) {
+        chunkHeight += nextHeight;
+        end++;
+        break;
+      }
+      chunkHeight += nextHeight;
+      end++;
+    }
+    chunks.push({
+      type: "table",
+      header: table.header || [],
+      rows: rows.slice(start, end),
+      alignments: table.alignments || [],
+      _tableLayout: layout,
+    });
+    start = end;
+    chunkLimit = nextMaxHeight;
+  }
+
+  return chunks;
+}
+
+function renderTableChunk(ctx, theme, layout, table, x, y, maxWidth, font, lineHeight) {
+  const tableLayout = table._tableLayout || measureTableLayout(ctx, table, font, lineHeight, maxWidth);
+  const { pad, grid, widths, innerWidths } = tableLayout;
+  const allRows = [table.header || [], ...(table.rows || [])];
+  const rowHeights = [tableLayout.headerHeight, ...tableLayout.rowHeights];
+  const tableHeight = pad.top + rowHeights[0] + grid + rowHeights.slice(1).reduce((sum, height) => sum + grid + height, pad.bottom);
+
+  drawCardBg(ctx, theme, x, y, maxWidth, tableHeight);
+
+  const drawRow = (row, rowIndex, rowY, isHeader = false) => {
+    let cellX = x + pad.left + grid;
+    const rowHeight = rowHeights[rowIndex];
+
+    if (isHeader) {
+      ctx.save();
+      ctx.fillStyle = theme.foreground;
+      ctx.globalAlpha = 0.05;
+      roundRect(ctx, x + pad.left, rowY, maxWidth - pad.left - pad.right, rowHeight, 10);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for (let col = 0; col < widths.length; col++) {
+      const cellWidth = widths[col];
+      const innerW = Math.max(1, innerWidths[col]);
+      const text = tableCellText(row[col]);
+      const lines = collectLines(text, font, innerW);
+      const contentHeight = lines.length * lineHeight;
+      const textTop = rowY + Math.round((rowHeight - contentHeight) / 2);
+      const align = table.alignments?.[col] || "left";
+      const textX = align === "right"
+        ? cellX + cellWidth - pad.cellX
+        : align === "center"
+          ? cellX + Math.round(cellWidth / 2)
+          : cellX + pad.cellX;
+
+      ctx.save();
+      ctx.fillStyle = isHeader ? theme.foreground : theme.mutedForeground;
+      ctx.font = font;
+      ctx.textBaseline = "top";
+      ctx.textAlign = align;
+      let ty = textTop;
+      for (const line of lines) {
+        ctx.fillText(line.text, textX, ty);
+        ty += lineHeight;
+      }
+      ctx.restore();
+
+      cellX += cellWidth + grid;
+    }
+  };
+
+  // Outer border and grid
+  ctx.save();
+  ctx.strokeStyle = theme.foreground;
+  ctx.globalAlpha = 0.15;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(x, y, maxWidth, tableHeight, 14) : roundRect(ctx, x, y, maxWidth, tableHeight, 14);
+  ctx.stroke();
+  ctx.restore();
+
+  let rowY = y + pad.top;
+  drawRow(allRows[0] || [], 0, rowY, true);
+  rowY += rowHeights[0] + grid;
+  for (let rowIndex = 1; rowIndex < allRows.length; rowIndex++) {
+    drawRow(allRows[rowIndex], rowIndex, rowY, false);
+    rowY += rowHeights[rowIndex] + grid;
+  }
+
+  // Horizontal grid lines
+  ctx.save();
+  ctx.strokeStyle = theme.foreground;
+  ctx.globalAlpha = 0.12;
+  ctx.lineWidth = 1;
+  let lineY = y + pad.top + rowHeights[0];
+  ctx.beginPath();
+  ctx.moveTo(x + pad.left, lineY);
+  ctx.lineTo(x + maxWidth - pad.right, lineY);
+  ctx.stroke();
+  lineY += grid;
+  for (let rowIndex = 1; rowIndex < rowHeights.length; rowIndex++) {
+    lineY += rowHeights[rowIndex - 1];
+    ctx.beginPath();
+    ctx.moveTo(x + pad.left, lineY);
+    ctx.lineTo(x + maxWidth - pad.right, lineY);
+    ctx.stroke();
+    lineY += grid;
+  }
+  ctx.restore();
+
+  // Vertical lines
+  ctx.save();
+  ctx.strokeStyle = theme.foreground;
+  ctx.globalAlpha = 0.12;
+  ctx.lineWidth = 1;
+  let colX = x + pad.left;
+  for (let col = 0; col <= widths.length; col++) {
+    ctx.beginPath();
+    ctx.moveTo(colX, y + pad.top);
+    ctx.lineTo(colX, y + tableHeight - pad.bottom);
+    ctx.stroke();
+    colX += (widths[col] || 0) + grid;
+  }
+  ctx.restore();
+
+  return tableHeight;
+}
+
+function measureTableSegmentHeight(ctx, table, font, lineHeight, maxWidth) {
+  return measureTableLayout(ctx, table, font, lineHeight, maxWidth).totalHeight;
+}
+
+function measureTopMetaHeight(section, imageH, headlineFont, bodyFont, headlineLineHeight, layout) {
+  let h = 0;
+  if (imageH > 0) {
+    h += imageH + layout.headlineToBody;
+  }
+  if (section.headline) {
+    const headW = antiWidowWidth(section.headline, headlineFont, layout.contentWidth);
+    h += measureTextHeight(section.headline, headlineFont, headW, headlineLineHeight);
+    h += layout.headlineToBody;
+  }
+  return h;
+}
+
+function finalizeChunkSection(section) {
+  if (!section) return null;
+  if (section.body && section.body.length === 0) delete section.body;
+  if (!section.headline && !section.body && !section.image) return null;
+  return section;
+}
+
+function expandSectionsForTables(sections, loadedImages, theme, layout, bodyFont, headlineFont, headlineLineHeight, bodyLineHeight) {
+  const expanded = [];
+  const availableHeight = layout.contentBottom - layout.contentTop;
+
+  for (let si = 0; si < sections.length; si++) {
+    const source = sections[si];
+    const imgData = loadedImages[si] || null;
+    const body = normalizeBody(source.body) || [];
+    const hasTopMeta = Boolean(source.headline || imgData);
+    const topMetaHeight = hasTopMeta
+      ? measureTopMetaHeight(source, imgData?.drawH ?? 0, headlineFont, bodyFont, headlineLineHeight, layout)
+      : 0;
+
+    let current = { ...source, body: [] };
+    let hasPrefixBody = false;
+    let usedTopMeta = false;
+
+    const flushCurrent = (noGap = false) => {
+      const finalized = finalizeChunkSection(current);
+      if (finalized) {
+        const retainImage = Boolean(current.headline || current.image);
+        expanded.push({ ...finalized, imgData: retainImage ? imgData : null, noGap });
+        if (retainImage) usedTopMeta = true;
+      }
+      current = { body: [] };
+      hasPrefixBody = false;
+    };
+
+    for (const seg of body) {
+      if (seg.type !== "table") {
+        current.body.push(seg);
+        hasPrefixBody = true;
+        continue;
+      }
+
+      const canUseTopMeta = hasTopMeta && !usedTopMeta && !hasPrefixBody;
+      const firstMaxHeight = canUseTopMeta ? Math.max(0, availableHeight - topMetaHeight) : availableHeight;
+      const chunks = splitTableIntoChunks(seg, _measureCtx, bodyFont, bodyLineHeight, layout.contentWidth, firstMaxHeight, availableHeight);
+
+      if (hasPrefixBody) {
+        flushCurrent(false);
+      }
+
+      if (canUseTopMeta) {
+        current.body.push(chunks[0]);
+        usedTopMeta = true;
+        flushCurrent(false);
+        for (let ci = 1; ci < chunks.length; ci++) {
+          expanded.push({ ...finalizeChunkSection({ body: [chunks[ci]] }), imgData: null, noGap: true });
+        }
+      } else {
+        for (let ci = 0; ci < chunks.length; ci++) {
+          expanded.push({ ...finalizeChunkSection({ body: [chunks[ci]] }), imgData: null, noGap: ci > 0 });
+        }
+      }
+    }
+
+    if (current.body.length > 0 || current.headline || current.image) {
+      const finalized = finalizeChunkSection(current);
+      if (finalized) {
+        expanded.push({ ...finalized, imgData: !usedTopMeta ? imgData : null, noGap: false });
+      }
+    }
+  }
+
+  return expanded;
+}
+
 // Returns null if path missing or fails.
 // aspectRatio: "16/9" | "4/3" | "1/1" | "free" (default)
 // imagePosition: "top" | "center" | "bottom" (default "top")
@@ -1139,9 +1462,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
   // Pre-load all section images
   // maxH: cap at contentWidth so 1:1 images fill full width; 16:9 / 4:3 are naturally shorter
-  const loadedImages = await Promise.all(
-    sections.map(s => s.image ? loadSectionImage(s.image, layout.contentWidth, layout.contentWidth, s.imageAspect ?? "free", s.imagePosition ?? "top") : Promise.resolve(null))
-  );
+  const loadedImages = sections.map((s) => s.imgData || null);
 
   // Group sections into pages (sections with images always get their own page)
   const pages = [];
@@ -1158,7 +1479,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
       codeStyle,
       imgData?.drawH ?? 0
     );
-    const gap = currentPage.length > 0 ? sectionGap : 0;
+    const gap = currentPage.length > 0 ? (sections[si].noGap ? 0 : sectionGap) : 0;
     // Sections with images always start a new page
     const forceNewPage = imgData && currentPage.length > 0;
     if (forceNewPage || (currentPage.length > 0 && usedH + gap + secH > AVAILABLE_H)) {
@@ -1180,7 +1501,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
     for (let i = 0; i < pageIndices.length; i++) {
       const section = sections[pageIndices[i]];
       const imgData = loadedImages[pageIndices[i]];
-      if (i > 0) y += sectionGap;
+      if (i > 0 && !section.noGap) y += sectionGap;
 
       // Image: draw above headline, scaled to fit
       if (imgData) {
@@ -1324,6 +1645,20 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
               }
             }
             y += boxH;
+
+          } else if (seg.type === "table") {
+            const tableH = renderTableChunk(
+              ctx,
+              theme,
+              layout,
+              seg,
+              layout.contentX,
+              y,
+              layout.contentWidth,
+              bodyFont,
+              bodyLH
+            );
+            y += tableH;
 
           } else {
             // text or list — same as before
@@ -1482,12 +1817,14 @@ async function main() {
     content.sections.map(s => s.image ? loadSectionImage(s.image, layout.contentWidth, layout.contentWidth, s.imageAspect ?? "free", s.imagePosition ?? "top") : Promise.resolve(null))
   );
 
+  const sections = expandSectionsForTables(content.sections, loadedImages, theme, layout, bodyFont, headlineFont, headLH, bodyLH);
+
   // Dry-run: count slides (sections with images always get their own page)
   let dryCount = 0, dryUsed = 0, dryHas = false;
-  for (let si = 0; si < content.sections.length; si++) {
-    const imgData = loadedImages[si];
+  for (let si = 0; si < sections.length; si++) {
+    const imgData = sections[si].imgData;
     const secH = measureSectionHeight(
-      content.sections[si],
+      sections[si],
       headlineFont,
       bodyFont,
       headLH,
@@ -1496,7 +1833,7 @@ async function main() {
       codeStyle,
       imgData?.drawH ?? 0
     );
-    const gap = dryHas ? layout.sectionGap : 0;
+    const gap = dryHas ? (sections[si].noGap ? 0 : layout.sectionGap) : 0;
     const forceNewPage = imgData && dryHas;
     if (forceNewPage || (dryHas && dryUsed + gap + secH > AVAILABLE_H)) {
       dryCount++;
@@ -1512,7 +1849,7 @@ async function main() {
 
   const allSlides = [];
   allSlides.push(await renderCover(content, theme, layout, totalSlides));
-  allSlides.push(...await renderContentSlides(content.sections, theme, layout, 2, totalSlides));
+  allSlides.push(...await renderContentSlides(sections, theme, layout, 2, totalSlides));
   allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides));
 
   const outDir = path.resolve(cliOutput);

@@ -4,7 +4,7 @@ import path from "path";
 import { pathToFileURL } from "url";
 
 function usage() {
-  console.error(`Usage: node markdown-to-content.js <input.md> [--output content.json]\n\nSupported blocks:\n  # / ## / ###   -> cover + section headings\n  paragraphs     -> body text\n  > blockquotes  -> callout cards\n  - / 1. lists   -> bullet text blocks\n  [ ] task lists -> task list text\n  fenced code    -> code cards\n  ![img](path)   -> section image\n  | table |      -> aligned table card\n  ---            -> section break`);
+  console.error(`Usage: node markdown-to-content.js <input.md> [--output content.json]\n\nSupported blocks:\n  # / ## / ###   -> cover + section headings\n  paragraphs     -> body text\n  > blockquotes  -> callout cards\n  - / 1. lists   -> bullet text blocks\n  [ ] task lists -> task list text\n  fenced code    -> code cards\n  ![img](path)   -> section image\n  | table |      -> real table card\n  ---            -> section break`);
 }
 
 function parseArgs(argv) {
@@ -163,6 +163,12 @@ function formatListBlock(items) {
     .join("\n");
 }
 
+function appendTable(section, table) {
+  if (!table) return;
+  if (!section.body) section.body = [];
+  section.body.push({ type: "table", ...table });
+}
+
 function splitTableCells(line) {
   const placeholder = "__MD_PIPE__";
   const cleaned = line.trim().replace(/\\\|/g, placeholder).replace(/^\|/, "").replace(/\|$/, "");
@@ -173,6 +179,19 @@ function isTableSeparatorRow(line) {
   return /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/.test(line);
 }
 
+function parseTableAlignments(line, columnCount) {
+  const cells = splitTableCells(line);
+  return Array.from({ length: columnCount }, (_, index) => {
+    const cell = cells[index] ?? "";
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    if (left && right) return "center";
+    if (right) return "right";
+    if (left) return "left";
+    return "left";
+  });
+}
+
 function formatTableBlock(lines) {
   const rows = lines
     .filter((line) => !isTableSeparatorRow(line))
@@ -180,37 +199,20 @@ function formatTableBlock(lines) {
     .filter((cells) => cells.length > 0);
 
   if (rows.length === 0) {
-    return cleanText(lines.join("\n"));
+    return null;
   }
 
-  const columnCount = Math.max(...rows.map((row) => row.length));
-  const widths = Array.from({ length: columnCount }, (_, col) => {
-    let width = 0;
-    for (const row of rows) {
-      const cell = row[col] ?? "";
-      width = Math.max(width, Array.from(cell).length);
-    }
-    return width;
-  });
+  const header = rows[0] ?? [];
+  const bodyRows = rows.slice(1);
+  const alignments = lines.some(isTableSeparatorRow)
+    ? parseTableAlignments(lines.find(isTableSeparatorRow) ?? "", Math.max(...rows.map((row) => row.length)))
+    : Array.from({ length: Math.max(...rows.map((row) => row.length)) }, () => "left");
 
-  const padCell = (cell, width) => `${cell}${" ".repeat(Math.max(0, width - Array.from(cell).length))}`;
-  const border = (left, fill, junction, right) =>
-    `${left}${widths.map((width) => fill.repeat(width + 2)).join(junction)}${right}`;
-
-  const rendered = [];
-  rendered.push(border("┌", "─", "┬", "┐"));
-  rows.forEach((row, index) => {
-    const line = row
-      .slice(0, columnCount)
-      .map((cell, col) => ` ${padCell(cell, widths[col])} `)
-      .join("│");
-    rendered.push(`│${line}│`);
-    if (index === 0 && rows.length > 1) {
-      rendered.push(border("├", "─", "┼", "┤"));
-    }
-  });
-  rendered.push(border("└", "─", "┴", "┘"));
-  return rendered.join("\n");
+  return {
+    header,
+    rows: bodyRows,
+    alignments,
+  };
 }
 
 function finalizeSection(section) {
@@ -271,7 +273,7 @@ function parseMarkdown(markdown, inputFile) {
     } else if (block.type === "list") {
       appendList(section, cleanText(formatListBlock(block.items)));
     } else if (block.type === "table") {
-      appendCode(section, formatTableBlock(block.lines));
+      appendTable(section, formatTableBlock(block.lines));
     }
 
     block = null;

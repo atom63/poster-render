@@ -30,7 +30,7 @@ console.log(`rendering via ${mode}`);
 | --- | --- |
 | quotes | callout |
 | lists | list |
-| code | code card |
+| code | real table card |
 
 ---
 

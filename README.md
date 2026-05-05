@@ -147,7 +147,7 @@ Mapping rules are intentionally simple:
 - `-`, `*`, `1.` lists → list cards
 - `- [ ]` / `- [x]` task lists → task-list text in list cards
 - fenced code blocks → code cards
-- pipe tables → aligned table cards rendered inside code blocks
+- pipe tables → aligned table cards rendered as real tables
 - standalone `![img](path)` → section image
 - `---` → optional section break
 - YAML frontmatter → ignored
