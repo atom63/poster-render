@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const repo = path.resolve('/Users/yz/Documents/GitHub/poster-render');
+const repo = process.cwd();
+const nodeBin = process.execPath;
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'poster-render-table-'));
@@ -21,14 +22,14 @@ test('renders markdown tables as real tables and paginates tall ones', () => {
   const markdown = `# Table demo\nIntro paragraph.\n\n## Tall table\nSome context before the table.\n\n| Name | Value |\n| :--- | ---: |\n${rows}\n`;
 
   fs.writeFileSync(mdPath, markdown);
-  execFileSync('node', ['markdown-to-content.js', mdPath, '--output', contentJson], { cwd: repo, stdio: 'pipe' });
+  execFileSync(nodeBin, ['markdown-to-content.js', mdPath, '--output', contentJson], { cwd: repo, stdio: 'pipe' });
   const parsed = JSON.parse(fs.readFileSync(contentJson, 'utf8'));
   const tableSection = parsed.sections.find((section) => section.headline === 'Tall table');
   assert.ok(tableSection, 'expected tall table section to exist');
   assert.equal(tableSection.body.at(-1).type, 'table');
   assert.equal(tableSection.body.at(-1).header[0], 'Name');
 
-  execFileSync('node', ['render.js', contentJson, '--output', outDir], { cwd: repo, stdio: 'pipe' });
+  execFileSync(nodeBin, ['render.js', contentJson, '--output', outDir], { cwd: repo, stdio: 'pipe' });
   const pngs = fs.readdirSync(outDir).filter((file) => file.endsWith('.png'));
   assert.ok(pngs.length >= 4, `expected paginated slides, got ${pngs.length}`);
 });
