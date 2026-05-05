@@ -8,10 +8,13 @@ Node.js CLI that renders Xiaohongshu (XHS) carousel poster slides as PNG images.
 npm install
 ```
 
-For global use after publishing, the package will expose:
+For global use after publishing, the package exposes:
 
 - `poster-render` → render slides from a content JSON file
-- `poster-notion` → convert a Notion page into `content.json`
+
+If you want to add an adapter layer, keep the adapter input in Markdown.
+Markdown is the most universal handoff format for AI agents, editors, and
+other content pipelines.
 
 ## Quick start
 
@@ -102,7 +105,6 @@ If installed globally or via `npx`, use:
 ```sh
 poster-render content.json --output ./output
 poster-render --help
-poster-notion <page-id> --output content.json
 ```
 
 Outputs `slide-01.png`, `slide-02.png`, … to `./output/` (or a custom directory).
@@ -123,21 +125,36 @@ Sections are **auto-paginated**: if a section's body text is too tall to fit the
 node render.js content.json --palette dark --output ./out-dark
 ```
 
-## Notion integration
+## Markdown adapter for agents
 
-Pull a Notion page directly into `content.json` format:
+Use Markdown as the *working* format for agent iteration, then convert it to
+`content.json` with the adapter script before rendering.
 
 ```sh
-# Requires NOTION_KEY env var (or set in ~/.openclaw/openclaw.json)
-node notion-to-content.js <page-id> [--output content.json] [--theme '{"palette":"slate"}']
+node markdown-to-content.js sample-markdown.md --output content.json
+# or
+npm run markdown:content -- sample-markdown.md --output content.json
+npm run render
 ```
 
-Notion block mapping:
-- `heading_1` → cover title (first one) or new section headline
-- `paragraph` after cover heading → cover subtitle
-- `paragraph` / `bulleted_list` / `numbered_list` → body text
-- `image` → downloaded to `./screenshots/`, inserted as `section.image`
-- `divider` → forces a new section
+Mapping rules are intentionally simple:
+
+- `#` → cover title
+- first paragraph after `#` → cover subtitle
+- `##` / `###` → section headlines
+- normal paragraphs → body text
+- fenced code blocks → code segments
+- `---` → optional section break
+
+Example loop for OpenClaw / Hermes / Claude-style workflows:
+
+1. edit `*.md`
+2. run `node markdown-to-content.js <input.md> --output content.json`
+3. run `npm run render`
+4. inspect the PNG output and iterate
+
+This keeps `poster-render` focused on rendering JSON to PNG. Markdown is the
+universal adapter layer; other sources can stay separate and optional.
 
 ## content.json schema
 

@@ -20,27 +20,28 @@
     "xhs",
     "png",
     "rendering",
-    "notion"
+    "markdown"
   ],
   "engines": {
     "node": ">=18"
   },
   "bin": {
-    "poster-render": "./render.js",
-    "poster-notion": "./notion-to-content.js"
+    "poster-render": "./render.js"
   },
   "files": [
     "render.js",
-    "notion-to-content.js",
+    "markdown-to-content.js",
     "README.md",
     "LICENSE",
-    "sample-content.json"
+    "sample-content.json",
+    "sample-markdown.md"
   ],
   "scripts": {
     "help": "node render.js --help",
     "render": "node render.js content.json",
     "sample": "node render.js sample-content.json --output ./output-sample",
-    "lint": "node --check render.js && node --check notion-to-content.js"
+    "markdown:content": "node markdown-to-content.js",
+    "lint": "node --check render.js && node --check markdown-to-content.js"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",
