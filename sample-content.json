@@ -1,0 +1,22 @@
+{
+  "theme": {
+    "palette": "dark",
+    "fontFamily": "sans",
+    "spacing": "md"
+  },
+  "cover": {
+    "title": "poster-render",
+    "subtitle": "A minimal sample poster deck"
+  },
+  "sections": [
+    {
+      "headline": "What it does",
+      "body": "Render structured JSON into polished 1080×1350 poster slides.\n\nSupports typography, syntax highlighting, images, and auto-pagination."
+    },
+    {
+      "headline": "Try the CLI",
+      "body": "Run `npm run sample` to generate this deck, or use `poster-render content.json` after installing globally."
+    }
+  ],
+  "cta": "Ship a nicer carousel faster"
+}

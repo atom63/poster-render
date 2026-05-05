@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createCanvas, registerFont, loadImage } from "canvas";
 import { createHighlighter } from "shiki";
 import fs from "fs";

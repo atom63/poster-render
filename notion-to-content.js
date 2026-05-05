@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * notion-to-content.js
  * 

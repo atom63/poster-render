@@ -1,9 +1,46 @@
 {
   "name": "poster-render",
   "version": "1.0.0",
+  "description": "A Node.js CLI for rendering Xiaohongshu-style poster slides from structured JSON.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atom63/poster-render.git"
+  },
+  "homepage": "https://github.com/atom63/poster-render#readme",
+  "bugs": {
+    "url": "https://github.com/atom63/poster-render/issues"
+  },
+  "keywords": [
+    "cli",
+    "poster",
+    "carousel",
+    "xiaohongshu",
+    "xhs",
+    "png",
+    "rendering",
+    "notion"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "poster-render": "./render.js",
+    "poster-notion": "./notion-to-content.js"
+  },
+  "files": [
+    "render.js",
+    "notion-to-content.js",
+    "README.md",
+    "LICENSE",
+    "sample-content.json"
+  ],
   "scripts": {
-    "render": "node render.js content.json"
+    "help": "node render.js --help",
+    "render": "node render.js content.json",
+    "sample": "node render.js sample-content.json --output ./output-sample",
+    "lint": "node --check render.js && node --check notion-to-content.js"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",

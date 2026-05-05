@@ -1,10 +1,37 @@
 # poster-render
 
-Node.js CLI that renders Xiaohongshu (XHS) carousel poster slides as PNG images. Takes a structured `content.json` and outputs 1080×1350px slides with typography, syntax highlighting, background patterns, and cover image support.
+Node.js CLI that renders Xiaohongshu (XHS) carousel poster slides as PNG images. It takes structured JSON and outputs 1080×1350px slides with typography, syntax highlighting, background patterns, and cover image support.
+
+## Install
+
+```sh
+npm install
+```
+
+For global use after publishing, the package will expose:
+
+- `poster-render` → render slides from a content JSON file
+- `poster-notion` → convert a Notion page into `content.json`
 
 ## Quick start
 
-1. Create a `content.json`:
+1. Start from `sample-content.json` or create your own `content.json`:
+
+```sh
+cp sample-content.json content.json
+```
+
+2. Render it:
+
+```sh
+npm run render
+# or
+npx poster-render content.json
+```
+
+3. Find your slides in `./output/slide-01.png`, `slide-02.png`, …
+
+### Sample content
 
 ```json
 {
@@ -27,15 +54,6 @@ Node.js CLI that renders Xiaohongshu (XHS) carousel poster slides as PNG images.
 }
 ```
 
-2. Run:
-
-```sh
-npm run render
-# or: node render.js content.json
-```
-
-3. Find your slides in `./output/slide-01.png`, `slide-02.png`, …
-
 ## Prerequisites
 
 - **Node.js 18+** (ESM, top-level `await`, and built-in `fetch` are used)
@@ -48,6 +66,14 @@ npm run render
 
 ```sh
 npm install
+```
+
+### Helpful scripts
+
+```sh
+npm run help    # show CLI usage
+npm run sample  # render sample-content.json into ./output-sample
+npm run lint    # basic syntax check for the CLI files
 ```
 
 ### Custom fonts (optional)
@@ -69,6 +95,14 @@ Emoji are rendered through Twemoji PNGs when possible, but offline or blocked ne
 ```sh
 npm run render                          # renders content.json → ./output/
 node render.js <content.json> [--help] [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight] [--output <dir>] # explicit file + options
+```
+
+If installed globally or via `npx`, use:
+
+```sh
+poster-render content.json --output ./output
+poster-render --help
+poster-notion <page-id> --output content.json
 ```
 
 Outputs `slide-01.png`, `slide-02.png`, … to `./output/` (or a custom directory).
@@ -208,3 +242,7 @@ Supported languages for syntax highlighting: `js`, `ts`, `python`, `rust`, `go`,
 1. **Cover** — title, subtitle, optional cover image
 2. **Content slides** — auto-paginated from sections; each section with an image gets its own slide
 3. **CTA** — closing slide with call-to-action and tags
+
+## Release status
+
+This repository is now close to CLI-ready for open-source use: it has package metadata, installable bin entries, a license, a sample input file, and basic verification scripts. Remaining work for a polished release is mainly around automated tests, CI/release automation, and a published npm version.
