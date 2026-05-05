@@ -81,13 +81,15 @@ npm run lint    # basic syntax check for the CLI files
 
 ### Custom fonts (optional)
 
-Place `.ttf` or `.otf` files in `./fonts/`. Files are matched by name substring:
+Place `.ttf` or `.otf` files in `./fonts/`. `render.js` auto-registers matching files by name substring, so the file name only needs to include one of these markers:
 
 | Font file name contains | Family used |
 |-------------------------|-------------|
-| `Inter` | `sans` |
-| `InstrumentalSerif` | `serif` |
-| `GeistMono` | `mono` |
+| `geistmono` | `mono` |
+| `geist` | `sans` |
+| `helvetica` | `sans` / `Helvetica Neue` |
+| `georgia` | `serif` / `Georgia` |
+| `menlo` | `mono` / `Menlo` |
 
 Without font files, system fallbacks are used. For Western text, the defaults are Helvetica/Georgia/Menlo; for Chinese/CJK text, install a CJK-capable font on the machine (for example PingFang SC, Hiragino Sans GB, Microsoft YaHei, or Noto Sans CJK SC) to reduce tofu/spacing issues.
 
@@ -146,11 +148,13 @@ Mapping rules are intentionally simple:
 - `>` blockquotes → callout cards
 - `-`, `*`, `1.` lists → list cards
 - `- [ ]` / `- [x]` task lists → task-list text in list cards
-- fenced code blocks → code cards
+- fenced code blocks → code cards with safe wrapping for long tokens
 - pipe tables → aligned table cards rendered as real tables
 - standalone `![img](path)` → section image
 - `---` → optional section break
 - YAML frontmatter → ignored
+
+Tables render as real table cards, and tall tables are paginated across slides with the header repeated on continuation pages. Code blocks wrap long tokens and expressions safely at the character level, so long identifiers stay inside the code card instead of overflowing.
 
 Example loop for OpenClaw / Hermes / Claude-style workflows:
 
@@ -268,4 +272,4 @@ Supported languages for syntax highlighting: `js`, `ts`, `python`, `rust`, `go`,
 
 ## Release status
 
-This repository is now close to CLI-ready for open-source use: it has package metadata, installable bin entries, a license, a sample input file, and basic verification scripts. Remaining work for a polished release is mainly around automated tests, CI/release automation, and a published npm version.
+This repository is in good shape for local and open-source use: it has package metadata, installable bin entries, a license, a sample input file, basic verification scripts, and node:test coverage for table pagination and wrapped code rendering. A polished release would mainly need CI/release automation and a published npm version.
