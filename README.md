@@ -193,11 +193,20 @@ universal adapter layer; other sources can stay separate and optional.
 
 ### Theme options
 
+You can tune the look in `theme` with these knobs:
+- `palette` — overall color system
+- `fontFamily` — sans / serif / mono
+- `spacing` — compact / default / roomy layout
+- `pattern` — optional background texture
+- `coverStyle` — cover image treatment
+- color overrides — fine-tune individual colors when you need a custom look
+- code block sizing — `codeFontSize`, `codeLineHeight`, and padding values
+
 ```jsonc
 {
   "theme": {
     // Palette (sets all colors; override individual keys below)
-    "palette": "light",        // "light" | "dark" | "warm" | "slate" | "paper" | "teal" | "midnight"
+    "palette": "light",        // "light" | "dark" | "warm" | "slate" | "paper" | "teal" | "midnight" | "clay"
 
     // Typography
     "fontFamily": "sans",      // "sans" | "serif" | "mono"
@@ -234,6 +243,24 @@ universal adapter layer; other sources can stay separate and optional.
 }
 ```
 
+### Visual references
+
+#### Background palettes
+
+![Background palettes](docs/assets/bg-palettes.png)
+
+#### Background patterns
+
+![Background patterns](docs/assets/bg-patterns.png)
+
+#### Font families
+
+![Font families](docs/assets/font-families.png)
+
+#### Spacing presets
+
+![Spacing presets](docs/assets/spacing-presets.png)
+
 ### Palettes
 
 | Name | Background | Style |
@@ -245,6 +272,7 @@ universal adapter layer; other sources can stay separate and optional.
 | `paper` | `#FDF6ED` | Parchment |
 | `teal` | `#E8F5F3` | Soft teal |
 | `midnight` | `#1A1A1A` | Warm dark |
+| `clay` | `#F6EEE9` | Clay rose |
 
 ### Cover styles
 

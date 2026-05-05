@@ -222,7 +222,7 @@ const SPACING_PRESETS = {
 // bg         — slide background
 // fg         — primary text (title, headline)
 // muted      — secondary text (subtitle, body)
-// subtle     — slide counter, decorative
+// subtle     — slide counter
 // accent     — highlight color (unused visually yet, but available for future use)
 const COLOR_PALETTES = {
   light: {
