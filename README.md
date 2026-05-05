@@ -145,9 +145,9 @@ Mapping rules are intentionally simple:
 - normal paragraphs → body text
 - `>` blockquotes → callout cards
 - `-`, `*`, `1.` lists → list cards
-- `- [ ]` / `- [x]` task lists → list cards
+- `- [ ]` / `- [x]` task lists → task-list text in list cards
 - fenced code blocks → code cards
-- pipe tables → code cards
+- pipe tables → aligned table cards rendered inside code blocks
 - standalone `![img](path)` → section image
 - `---` → optional section break
 - YAML frontmatter → ignored

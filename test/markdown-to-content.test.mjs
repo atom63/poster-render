@@ -45,8 +45,11 @@ Body text.
   assert.match(first.body[0].content, /Quote line one/);
   assert.match(first.body[1].content, /• item one/);
   assert.match(first.body[2].content, /1\. first/);
-  assert.match(first.body[3].content, /☑ done/);
-  assert.match(first.body[4].content, /\| A \| B \|/);
+  assert.equal(first.body[3].content, '- [x] done\n- [ ] todo');
+  assert.match(first.body[4].content, /^┌/m);
+  assert.match(first.body[4].content, /│ A │ B │/);
+  assert.match(first.body[4].content, /└/m);
+  assert.equal(first.body[4].lang, undefined);
 
   const second = content.sections[1];
   assert.equal(second.headline, 'Section');
