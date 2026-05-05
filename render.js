@@ -3,6 +3,7 @@ import { createCanvas, registerFont, loadImage } from "canvas";
 import { createHighlighter } from "shiki";
 import fs from "fs";
 import path from "path";
+import { pathToFileURL } from "url";
 
 // --- Twemoji PNG rendering for emoji (node-canvas/Cairo can't render color emoji) ---
 const EMOJI_CACHE_DIR = path.resolve("emoji-cache");
@@ -86,6 +87,46 @@ async function getShikiHighlighter(shikiTheme) {
   return _shikiCache[shikiTheme];
 }
 
+function fitCodeChunk(ctx, text, curX, maxX) {
+  let chunk = text;
+  let width = ctx.measureText(chunk).width;
+  if (curX + width <= maxX || curX === 0) {
+    // Fits (or first char on line — always draw at least 1 char)
+    if (curX + width > maxX) {
+      // Binary search for max fitting length
+      let lo = 1;
+      let hi = chunk.length;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (ctx.measureText(chunk.slice(0, mid)).width + curX <= maxX) lo = mid;
+        else hi = mid - 1;
+      }
+      chunk = chunk.slice(0, lo);
+      width = ctx.measureText(chunk).width;
+    }
+    return { chunk, width };
+  }
+  return null;
+}
+
+function countWrappedCodeLines(ctx, line, maxWidth) {
+  if (line.length === 0) return 1;
+
+  let lines = 1;
+  let curX = 0;
+  for (let ci = 0; ci < line.length; ) {
+    const fit = fitCodeChunk(ctx, line.slice(ci), curX, maxWidth);
+    if (fit) {
+      curX += fit.width;
+      ci += fit.chunk.length;
+    } else {
+      lines += 1;
+      curX = 0;
+    }
+  }
+  return lines;
+}
+
 // Render Shiki-tokenized code onto canvas. Returns total height drawn.
 async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fontSize, lineHeight) {
   const shikiTheme = PALETTE_TO_SHIKI[paletteName] || "github-dark";
@@ -102,36 +143,24 @@ async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fo
 
     let curY = y;
     for (const line of tokens) {
-      // Wrap long lines: measure tokens and break when exceeding maxWidth
-      let curX = x;
+      // Wrap long lines: measure tokens and break when exceeding maxWidth.
+      // Keep curX relative to the start of the current visual line so the
+      // wrapping rule stays consistent with countWrappedCodeLines().
+      let curX = 0;
       for (const token of line) {
         const color = token.color || "#888";
         const text = token.content;
         // Split by characters for wrapping
         for (let ci = 0; ci < text.length; ) {
-          // Find how many chars fit on current line
-          let chunk = text.slice(ci);
-          let cw = ctx.measureText(chunk).width;
-          if (curX + cw <= x + maxWidth || ci === 0 && curX === x) {
-            // Fits (or first char on line — always draw at least 1 char)
-            if (curX + cw > x + maxWidth) {
-              // Binary search for max fitting length
-              let lo = 1, hi = chunk.length;
-              while (lo < hi) {
-                const mid = (lo + hi + 1) >> 1;
-                if (ctx.measureText(chunk.slice(0, mid)).width + curX <= x + maxWidth) lo = mid;
-                else hi = mid - 1;
-              }
-              chunk = chunk.slice(0, lo);
-              cw = ctx.measureText(chunk).width;
-            }
+          const fit = fitCodeChunk(ctx, text.slice(ci), curX, maxWidth);
+          if (fit) {
             ctx.fillStyle = color;
-            ctx.fillText(chunk, curX, curY);
-            curX += cw;
-            ci += chunk.length;
+            ctx.fillText(fit.chunk, x + curX, curY);
+            curX += fit.width;
+            ci += fit.chunk.length;
           } else {
-            // Wrap to next line
-            curX = x;
+            // Wrap to next line and retry the same token from the new line.
+            curX = 0;
             curY += lineHeight;
           }
         }
@@ -154,13 +183,7 @@ function measureCodeHeight(ctx, code, fontSize, lineHeight, maxWidth) {
   const lines = code.split("\n");
   let totalH = 0;
   for (const line of lines) {
-    if (line.trim() === "") {
-      totalH += lineHeight;
-      continue;
-    }
-    const w = ctx.measureText(line).width;
-    const wrappedLines = Math.max(1, Math.ceil(w / maxWidth));
-    totalH += wrappedLines * lineHeight;
+    totalH += countWrappedCodeLines(ctx, line, maxWidth) * lineHeight;
   }
   ctx.restore();
   return totalH;
@@ -1634,16 +1657,27 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
               // Fallback: plain monochrome
               ctx.fillStyle = theme.subtleForeground;
               ctx.font = monoFontString(codeFontSize);
-              let bCursor = { segmentIndex: 0, graphemeIndex: 0 };
-              const prepared = prepareWithSegments(seg.content, monoFontString(codeFontSize), { whiteSpace: "pre-wrap" });
+              ctx.textBaseline = "top";
               let ty = y + pad.top;
-              while (true) {
-                const line = layoutNextLine(prepared, bCursor, innerW);
-                if (line === null) break;
-                const isEmpty = line.text.trim() === "";
-                if (!isEmpty) ctx.fillText(line.text, layout.contentX + pad.left, ty);
-                bCursor = line.end;
-                ty += isEmpty ? Math.round(codeLineHeight * TOKENS.paragraphGap) : codeLineHeight;
+              for (const line of seg.content.split("\n")) {
+                if (line.length === 0) {
+                  ty += codeLineHeight;
+                  continue;
+                }
+
+                let curX = 0;
+                for (let ci = 0; ci < line.length; ) {
+                  const fit = fitCodeChunk(ctx, line.slice(ci), curX, innerW);
+                  if (fit) {
+                    ctx.fillText(fit.chunk, layout.contentX + pad.left + curX, ty);
+                    curX += fit.width;
+                    ci += fit.chunk.length;
+                  } else {
+                    curX = 0;
+                    ty += codeLineHeight;
+                  }
+                }
+                ty += codeLineHeight;
               }
             }
             y += boxH;
@@ -1868,4 +1902,9 @@ async function main() {
   console.log(`Rendered ${allSlides.length} slides → ${outDir}`);
 }
 
-main();
+const entryPath = process.argv[1] ? fs.realpathSync(process.argv[1]) : null;
+if (entryPath && pathToFileURL(entryPath).href === import.meta.url) {
+  main();
+}
+
+export { fitCodeChunk, countWrappedCodeLines, measureCodeHeight };

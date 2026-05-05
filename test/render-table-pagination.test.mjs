@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createCanvas, loadImage } from 'canvas';
+import { countWrappedCodeLines, measureCodeHeight } from '../render.js';
 
 const repo = process.cwd();
 const nodeBin = process.execPath;
@@ -48,6 +49,24 @@ function countContentBlocks(ctx, sampleX, backgroundX = 10) {
     } else if (!isContent && inBlock) {
       inBlock = false;
     }
+  }
+  return blocks;
+}
+
+function getContentBlocks(ctx, sampleX, backgroundX = 10) {
+  const blocks = [];
+  let start = null;
+  for (let y = 0; y < ctx.canvas.height; y++) {
+    const isContent = !sameColor(sample(ctx, sampleX, y), sample(ctx, backgroundX, y));
+    if (isContent && start === null) {
+      start = y;
+    } else if (!isContent && start !== null) {
+      blocks.push({ start, end: y - 1, height: y - start });
+      start = null;
+    }
+  }
+  if (start !== null) {
+    blocks.push({ start, end: ctx.canvas.height - 1, height: ctx.canvas.height - start });
   }
   return blocks;
 }
@@ -205,4 +224,67 @@ test('renders body text after a table in the same section', async () => {
   const sampleX = 72;
   const blocks = countContentBlocks(ctx, sampleX);
   assert.ok(blocks >= 3, `expected headline, table, and body blocks; got ${blocks}`);
+});
+
+test('measures long code tokens using wrapped line count', () => {
+  const canvas = createCanvas(2000, 100);
+  const ctx = canvas.getContext('2d');
+  const fontSize = 30;
+  const lineHeight = 48;
+  const maxWidth = 852;
+  const font = `${fontSize}px "Menlo", Consolas, monospace`;
+  ctx.font = font;
+
+  const token = 'a'.repeat(100);
+  const code = Array.from({ length: 10 }, (_, index) => `const token${index} = \"${token}\";`).join('\n');
+  const expectedLines = code.split('\n').reduce(
+    (sum, line) => sum + countWrappedCodeLines(ctx, line, maxWidth),
+    0,
+  );
+
+  assert.ok(expectedLines >= 20, `expected the long token sample to wrap to many visual lines, got ${expectedLines}`);
+  assert.equal(measureCodeHeight(ctx, code, fontSize, lineHeight, maxWidth), expectedLines * lineHeight);
+});
+
+test('renders long code blocks on the real PNG output without overflow', async () => {
+  const tmp = makeTempDir();
+  const outDir = path.join(tmp, 'out');
+
+  const code = `const result = ${Array.from({ length: 120 }, (_, index) => `word${index}`).join(' + ')};`;
+  const content = {
+    theme: { palette: 'light', spacing: 'sm', fontFamily: 'mono' },
+    cover: {
+      title: 'Code overflow check',
+      subtitle: 'Regression test',
+    },
+    cta: 'Thanks',
+    sections: [
+      {
+        headline: 'Code block',
+        body: [
+          {
+            type: 'code',
+            lang: 'javascript',
+            content: code,
+          },
+        ],
+      },
+    ],
+  };
+
+  renderContent(content, outDir);
+
+  const { img, ctx } = await loadSlide(path.join(outDir, 'slide-02.png'));
+  const sampleX = 150; // inside the rendered code text area, not just the left padding
+  const blocks = getContentBlocks(ctx, sampleX);
+  assert.ok(blocks.length >= 1, `expected to find the code card block, got ${blocks.length}`);
+
+  const codeBlock = blocks.at(-1);
+  assert.ok(codeBlock, 'expected to find a code card block');
+  assert.ok(codeBlock.height > 120, `expected the code card to span multiple wrapped lines, got ${codeBlock.height}`);
+  assert.ok(
+    sameColor(sample(ctx, sampleX, codeBlock.end + 2), sample(ctx, 10, codeBlock.end + 2)),
+    'expected background below the code card'
+  );
+  assert.ok(img.height > codeBlock.end + 2, 'expected the sampled code card to stay within the slide');
 });
