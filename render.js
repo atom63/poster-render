@@ -934,8 +934,10 @@ function renderTableChunk(ctx, theme, layout, table, x, y, maxWidth, font, lineH
   const allRows = [table.header || [], ...(table.rows || [])];
   const rowHeights = [tableLayout.headerHeight, ...tableLayout.rowHeights];
   const tableHeight = pad.top + rowHeights[0] + grid + rowHeights.slice(1).reduce((sum, height) => sum + grid + height, pad.bottom);
+  const contentHeight = Math.max(0, tableHeight - pad.bottom);
 
-  drawCardBg(ctx, theme, x, y, maxWidth, tableHeight);
+  // Draw only the actual card content area; reserve pad.bottom as page background space.
+  drawCardBg(ctx, theme, x, y, maxWidth, contentHeight);
 
   const drawRow = (row, rowIndex, rowY, isHeader = false) => {
     let cellX = x + pad.left + grid;
@@ -1028,7 +1030,7 @@ function renderTableChunk(ctx, theme, layout, table, x, y, maxWidth, font, lineH
   for (let col = 0; col <= widths.length; col++) {
     ctx.beginPath();
     ctx.moveTo(colX, y + pad.top);
-    ctx.lineTo(colX, y + tableHeight - pad.bottom);
+    ctx.lineTo(colX, y + contentHeight);
     ctx.stroke();
     colX += (widths[col] || 0) + grid;
   }
