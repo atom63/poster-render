@@ -1847,12 +1847,15 @@ async function main() {
   }
   if (dryHas) dryCount++;
 
-  const totalSlides = 1 + dryCount + 1;
+  const hasCTA = Boolean(content.cta && content.cta.trim());
+  const totalSlides = 1 + dryCount + (hasCTA ? 1 : 0);
 
   const allSlides = [];
   allSlides.push(await renderCover(content, theme, layout, totalSlides));
   allSlides.push(...await renderContentSlides(sections, theme, layout, 2, totalSlides));
-  allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides));
+  if (hasCTA) {
+    allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides));
+  }
 
   const outDir = path.resolve(cliOutput);
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });

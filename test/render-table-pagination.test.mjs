@@ -13,6 +13,45 @@ function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'poster-render-table-'));
 }
 
+function renderContent(content, outDir) {
+  const contentJson = path.join(outDir, 'content.json');
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(contentJson, JSON.stringify(content, null, 2));
+  execFileSync(nodeBin, ['render.js', contentJson, '--output', outDir], { cwd: repo, stdio: 'pipe' });
+  return contentJson;
+}
+
+async function loadSlide(imagePath) {
+  const img = await loadImage(imagePath);
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  return { img, ctx };
+}
+
+function sample(ctx, x, y) {
+  return Array.from(ctx.getImageData(x, y, 1, 1).data);
+}
+
+function sameColor(a, b, tolerance = 4) {
+  return a.every((v, i) => Math.abs(v - b[i]) <= tolerance);
+}
+
+function countContentBlocks(ctx, sampleX, backgroundX = 10) {
+  let blocks = 0;
+  let inBlock = false;
+  for (let y = 0; y < ctx.canvas.height; y++) {
+    const isContent = !sameColor(sample(ctx, sampleX, y), sample(ctx, backgroundX, y));
+    if (isContent && !inBlock) {
+      blocks += 1;
+      inBlock = true;
+    } else if (!isContent && inBlock) {
+      inBlock = false;
+    }
+  }
+  return blocks;
+}
+
 test('renders markdown tables as real tables and paginates tall ones', () => {
   const tmp = makeTempDir();
   const mdPath = path.join(tmp, 'input.md');
@@ -37,7 +76,6 @@ test('renders markdown tables as real tables and paginates tall ones', () => {
 
 test('table card leaves bottom padding as slide background', async () => {
   const tmp = makeTempDir();
-  const contentJson = path.join(tmp, 'content.json');
   const outDir = path.join(tmp, 'out');
 
   const content = {
@@ -64,29 +102,19 @@ test('table card leaves bottom padding as slide background', async () => {
     ],
   };
 
-  fs.writeFileSync(contentJson, JSON.stringify(content, null, 2));
-  execFileSync(nodeBin, ['render.js', contentJson, '--output', outDir], { cwd: repo, stdio: 'pipe' });
+  renderContent(content, outDir);
 
-  const imagePath = path.join(outDir, 'slide-02.png');
-  const img = await loadImage(imagePath);
-  const canvas = createCanvas(img.width, img.height);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0);
-
-  const sample = (x, y) => Array.from(ctx.getImageData(x, y, 1, 1).data);
-  const same = (a, b, tolerance = 4) => a.every((v, i) => Math.abs(v - b[i]) <= tolerance);
-  const background = sample(10, 10);
+  const { img, ctx } = await loadSlide(path.join(outDir, 'slide-02.png'));
   const x = 72;
-
   let sawCard = false;
   let gapY = null;
   for (let y = 0; y < img.height; y++) {
-    const px = sample(x, y);
-    if (!sawCard && !same(px, background)) {
+    const px = sample(ctx, x, y);
+    if (!sawCard && !sameColor(px, sample(ctx, 10, y))) {
       sawCard = true;
       continue;
     }
-    if (sawCard && same(px, background)) {
+    if (sawCard && sameColor(px, sample(ctx, 10, y))) {
       gapY = y;
       break;
     }
@@ -94,5 +122,87 @@ test('table card leaves bottom padding as slide background', async () => {
 
   assert.ok(sawCard, 'expected to hit the table card');
   assert.ok(gapY !== null, 'expected the card fill to stop before the slide bottom');
-  assert.ok(same(sample(x, gapY + 2), background), 'expected bottom padding area to use slide background');
+  assert.ok(sameColor(sample(ctx, x, gapY + 2), sample(ctx, 10, gapY + 2)), 'expected bottom padding area to use slide background');
+});
+
+test('renders representative theme, spacing, and font combinations', () => {
+  const variants = [
+    { name: 'light-sm-sans', theme: { palette: 'light', spacing: 'sm', fontFamily: 'sans' } },
+    { name: 'warm-md-serif', theme: { palette: 'warm', spacing: 'md', fontFamily: 'serif' } },
+    { name: 'slate-lg-sans', theme: { palette: 'slate', spacing: 'lg', fontFamily: 'sans' } },
+    { name: 'teal-sm-mono', theme: { palette: 'teal', spacing: 'sm', fontFamily: 'mono' } },
+  ];
+
+  for (const variant of variants) {
+    const tmp = makeTempDir();
+    const outDir = path.join(tmp, variant.name);
+    const content = {
+      theme: variant.theme,
+      cover: {
+        title: `Smoke ${variant.name}`,
+        subtitle: 'Render check',
+      },
+      cta: 'Thanks',
+      sections: [
+        {
+          headline: `Smoke ${variant.name}`,
+          body: [
+            {
+              type: 'table',
+              header: ['Name', 'Value'],
+              rows: [
+                ['Alpha', '1'],
+                ['Beta', '2'],
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    renderContent(content, outDir);
+    const pngs = fs.readdirSync(outDir).filter((file) => file.endsWith('.png'));
+    assert.ok(pngs.length >= 2, `expected rendered slides for ${variant.name}, got ${pngs.length}`);
+    assert.ok(fs.existsSync(path.join(outDir, 'slide-02.png')), `expected slide-02.png for ${variant.name}`);
+  }
+});
+
+test('renders body text after a table in the same section', async () => {
+  const tmp = makeTempDir();
+  const outDir = path.join(tmp, 'out');
+
+  const content = {
+    theme: { palette: 'light', spacing: 'sm', fontFamily: 'sans' },
+    cover: {
+      title: 'Table then body',
+      subtitle: 'Regression test',
+    },
+    cta: 'Thanks',
+    sections: [
+      {
+        headline: 'Table then body',
+        body: [
+          {
+            type: 'table',
+            header: ['Name', 'Value'],
+            rows: [
+              ['Alpha', '1'],
+              ['Beta', '2'],
+            ],
+          },
+          {
+            type: 'text',
+            content: 'After table paragraph should still render and stay separate from the table block.',
+          },
+        ],
+      },
+    ],
+  };
+
+  renderContent(content, outDir);
+
+  const { ctx } = await loadSlide(path.join(outDir, 'slide-02.png'));
+  const sampleX = 72;
+  const blocks = countContentBlocks(ctx, sampleX);
+  assert.ok(blocks >= 3, `expected headline, table, and body blocks; got ${blocks}`);
 });
