@@ -3,3 +3,4 @@ screenshots/
 *.test.json
 test-*.json
 node_modules/
+.claude/
