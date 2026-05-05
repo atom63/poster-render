@@ -253,6 +253,8 @@ You can tune the look in `theme` with these knobs:
 
 ![Background patterns](docs/assets/bg-patterns.png)
 
+Zoomed corner crops so the texture reads at README size.
+
 #### Font families
 
 ![Font families](docs/assets/font-families.png)
