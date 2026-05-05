@@ -326,14 +326,14 @@ function resolveLayout(theme) {
 function fontString(typeKey, fontFamily) {
   const t = TOKENS.type[typeKey];
   const fm = TOKENS.fonts[fontFamily] || TOKENS.fonts.sans;
-  const family = `"${fm.name}", ${fm.fallback}, "Apple Color Emoji"`;
+  const family = `"${fm.name}", ${fm.fallback}, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Apple Color Emoji"`;
   const w = t.weight === "normal" ? "" : t.weight + " ";
   return `${w}${t.size}px ${family}`;
 }
 
 function monoFontString(size) {
   const fm = TOKENS.fonts.mono;
-  return `${size}px "${fm.name}", ${fm.fallback}, "Apple Color Emoji"`;
+  return `${size}px "${fm.name}", ${fm.fallback}, "Noto Sans Mono CJK SC", "Apple Color Emoji"`;
 }
 
 // --- Font registration ---
@@ -1357,20 +1357,73 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 async function main() {
   // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
   const args = process.argv.slice(2);
-  const inputFile = args.find(a => !a.startsWith("--"));
-  if (!inputFile) {
-    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|chalk] [--output <dir>]");
+  const printUsage = () => {
+    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight] [--output <dir>] [--help]");
+  };
+
+  const parseArgs = () => {
+    let inputFile = null;
+    let cliSpacing = null;
+    let cliPalette = null;
+    let cliOutput = "./output";
+
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === "-h" || arg === "--help") {
+        return { help: true };
+      }
+      if (arg === "--spacing" || arg === "--palette" || arg === "--output") {
+        const value = args[i + 1];
+        if (!value || value.startsWith("--")) {
+          throw new Error(`Missing value for ${arg}`);
+        }
+        if (arg === "--spacing") cliSpacing = value;
+        else if (arg === "--palette") cliPalette = value;
+        else cliOutput = value;
+        i++;
+        continue;
+      }
+      if (arg.startsWith("--")) {
+        throw new Error(`Unknown option ${arg}`);
+      }
+      if (inputFile) {
+        throw new Error(`Unexpected extra argument: ${arg}`);
+      }
+      inputFile = arg;
+    }
+
+    return { inputFile, cliSpacing, cliPalette, cliOutput };
+  };
+
+  let parsed;
+  try {
+    parsed = parseArgs();
+  } catch (error) {
+    console.error(error.message);
+    printUsage();
     process.exit(1);
   }
 
-  const spacingIdx = args.indexOf("--spacing");
-  const cliSpacing = spacingIdx !== -1 ? args[spacingIdx + 1] : null;
+  if (parsed.help) {
+    printUsage();
+    process.exit(0);
+  }
 
-  const paletteIdx = args.indexOf("--palette");
-  const cliPalette = paletteIdx !== -1 ? args[paletteIdx + 1] : null;
-
-  const outputIdx = args.indexOf("--output");
-  const cliOutput = outputIdx !== -1 ? args[outputIdx + 1] : "./output";
+  const { inputFile, cliSpacing, cliPalette, cliOutput } = parsed;
+  if (!inputFile) {
+    printUsage();
+    process.exit(1);
+  }
+  if (cliSpacing !== null && !SPACING_PRESETS[cliSpacing]) {
+    console.error(`Invalid --spacing "${cliSpacing}". Use sm, md, or lg.`);
+    printUsage();
+    process.exit(1);
+  }
+  if (cliPalette !== null && !COLOR_PALETTES[cliPalette]) {
+    console.error(`Invalid --palette "${cliPalette}". Use one of: ${Object.keys(COLOR_PALETTES).join(", ")}.`);
+    printUsage();
+    process.exit(1);
+  }
 
   tryRegisterFonts();
 

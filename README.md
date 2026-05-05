@@ -38,7 +38,7 @@ npm run render
 
 ## Prerequisites
 
-- **Node.js 14+** (ESM required)
+- **Node.js 18+** (ESM, top-level `await`, and built-in `fetch` are used)
 - **node-canvas native dependencies** — the `canvas` package builds against Cairo/Pango:
   - macOS: `brew install pkg-config cairo pango libpng jpeg giflib librsvg pixman`
   - Ubuntu/Debian: `sudo apt-get install build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev`
@@ -60,13 +60,15 @@ Place `.ttf` or `.otf` files in `./fonts/`. Files are matched by name substring:
 | `InstrumentalSerif` | `serif` |
 | `GeistMono` | `mono` |
 
-Without font files, system fallbacks are used (Helvetica, Georgia, Menlo).
+Without font files, system fallbacks are used. For Western text, the defaults are Helvetica/Georgia/Menlo; for Chinese/CJK text, install a CJK-capable font on the machine (for example PingFang SC, Hiragino Sans GB, Microsoft YaHei, or Noto Sans CJK SC) to reduce tofu/spacing issues.
+
+Emoji are rendered through Twemoji PNGs when possible, but offline or blocked network access can still fall back to simple ASCII symbols.
 
 ## Usage
 
 ```sh
 npm run render                          # renders content.json → ./output/
-node render.js <content.json> [options] # explicit file + options
+node render.js <content.json> [--help] [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight] [--output <dir>] # explicit file + options
 ```
 
 Outputs `slide-01.png`, `slide-02.png`, … to `./output/` (or a custom directory).
