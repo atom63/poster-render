@@ -41,7 +41,7 @@
     "render": "node render.js content.json",
     "sample": "node render.js examples/sample-content.json --output ./output-sample",
     "markdown:content": "node markdown-to-content.js",
-    "lint": "node --check render.js && node --check markdown-to-content.js",
+    "lint": "node --check render.js && node --check render-config.js && node --check markdown-to-content.js",
     "test": "node --test test/*.mjs"
   },
   "dependencies": {
