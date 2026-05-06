@@ -389,8 +389,33 @@ function resolveThemeNumber(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// --- Template registry ---
+// template is the canonical top-level layout-family selector in content.json.
+// boardStyle is accepted as a legacy alias for backward compatibility.
+const TEMPLATE_REGISTRY = {
+  default: {
+    name: "default",
+    layoutFamily: "default",
+    coverStyle: "card",
+  },
+};
+
+function normalizeTemplateName(value) {
+  if (typeof value !== "string") return TEMPLATE_REGISTRY.default.name;
+  const name = value.trim();
+  return name || TEMPLATE_REGISTRY.default.name;
+}
+
+function resolveTemplateName(content) {
+  return normalizeTemplateName(content?.template ?? content?.boardStyle);
+}
+
+function resolveTemplate(templateName) {
+  return TEMPLATE_REGISTRY[normalizeTemplateName(templateName)] || TEMPLATE_REGISTRY.default;
+}
+
 // --- Layout ---
-function resolveLayout(theme) {
+function resolveLayout(theme, template = TEMPLATE_REGISTRY.default) {
   const preset = SPACING_PRESETS[theme.spacing] || SPACING_PRESETS.md;
   return {
     padX:           preset.padX,
@@ -398,6 +423,7 @@ function resolveLayout(theme) {
     footerH:        preset.footerH,
     sectionGap:     preset.sectionGap,
     headlineToBody: preset.headlineToBody,
+    layoutFamily:   template.layoutFamily || TEMPLATE_REGISTRY.default.layoutFamily,
     // Derived
     contentX:       preset.padX,
     contentWidth:   TOKENS.canvas.width - preset.padX * 2,
@@ -1270,14 +1296,14 @@ async function loadSectionImage(imagePath, contentWidth, maxH = 700, aspectRatio
 }
 
 // --- Slide renderers ---
-async function renderCover(content, theme, layout, totalSlides) {
+async function renderCover(content, theme, layout, totalSlides, template) {
   const { canvas, ctx } = createSlideCanvas(theme);
 
   if (content.cover.coverImage) {
     const W = TOKENS.canvas.width;
     const H = TOKENS.canvas.height;
     const cover = content.cover;
-    const coverStyle = cover.coverStyle || "card";
+    const coverStyle = cover.coverStyle || template.coverStyle || "card";
 
     // Shared font setup
     const cardTitleSize = Math.round(TOKENS.type.headline.size * 1.4); // ~73px
@@ -1327,6 +1353,25 @@ async function renderCover(content, theme, layout, totalSlides) {
     }
 
     // Text renderer (left-aligned unless ctx.textAlign is set externally)
+    function hasCjk(text) {
+      return /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/.test(text);
+    }
+
+    function hasLatin(text) {
+      return /[A-Za-z]/.test(text);
+    }
+
+    // Tiny optical tweak for bilingual cover text:
+    // Latin-heavy lines tend to look a touch taller/airier than CJK lines at the same nominal line height.
+    // Tighten them slightly on cover text only, so bilingual titles feel more even.
+    function coverLineAdvance(text, baseLineH) {
+      const latin = hasLatin(text);
+      const cjk = hasCjk(text);
+      if (latin && cjk) return Math.round(baseLineH * 0.95);
+      if (latin) return Math.round(baseLineH * 0.93);
+      return baseLineH;
+    }
+
     function drawTextBlock(text, font, color, x, startY, maxW, lineH) {
       ctx.fillStyle = color;
       ctx.font = font;
@@ -1338,7 +1383,7 @@ async function renderCover(content, theme, layout, totalSlides) {
         if (line === null) break;
         ctx.fillText(line.text, x, y);
         cursor = line.end;
-        y += lineH;
+        y += coverLineAdvance(line.text, lineH);
       }
       return y;
     }
@@ -1890,6 +1935,9 @@ async function main() {
   tryRegisterFonts();
 
   const content = JSON.parse(fs.readFileSync(inputFile, "utf-8"));
+  const resolvedTemplate = resolveTemplate(resolveTemplateName(content));
+  content.template = resolvedTemplate.name;
+  if (content.boardStyle !== undefined) delete content.boardStyle;
   const cover = content.cover || {};
   const autoCoverKicker = estimateCoverKicker(content);
   content.cover = {
@@ -1929,7 +1977,7 @@ async function main() {
   theme.codePadLeft = resolveThemeNumber(theme.codePadLeft, SEGMENT_PAD.code.left);
   theme.codePadRight = resolveThemeNumber(theme.codePadRight, SEGMENT_PAD.code.right);
 
-  const layout = resolveLayout(theme);
+  const layout = resolveLayout(theme, resolvedTemplate);
 
   // Pre-load images for dry-run height estimation
   const bodyFont     = fontString("body", theme.fontFamily);
@@ -1983,7 +2031,7 @@ async function main() {
   const totalSlides = 1 + dryCount + (hasCTA ? 1 : 0);
 
   const allSlides = [];
-  allSlides.push(await renderCover(content, theme, layout, totalSlides));
+  allSlides.push(await renderCover(content, theme, layout, totalSlides, resolvedTemplate));
   allSlides.push(...await renderContentSlides(sections, theme, layout, 2, totalSlides));
   if (hasCTA) {
     allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides));
@@ -2005,4 +2053,4 @@ if (entryPath && pathToFileURL(entryPath).href === import.meta.url) {
   main();
 }
 
-export { fitCodeChunk, countWrappedCodeLines, measureCodeHeight, estimateCoverKicker };
+export { fitCodeChunk, countWrappedCodeLines, measureCodeHeight, estimateCoverKicker, TEMPLATE_REGISTRY, resolveTemplateName, resolveTemplate };
