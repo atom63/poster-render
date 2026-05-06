@@ -76,7 +76,7 @@ test('resolveThemeConfig keeps easteregg opt-in and normalizes the config', () =
   });
 });
 
-test('resolveThemeConfig enables easteregg from the CLI', () => {
+test('resolveThemeConfig enables easteregg from the CLI and overrides JSON off', () => {
   const baseTokens = {
     canvas: { width: 1080, height: 1350 },
     type: {
@@ -89,6 +89,9 @@ test('resolveThemeConfig enables easteregg from the CLI', () => {
   const resolved = resolveThemeConfig({
     TOKENS: baseTokens,
     SEGMENT_PAD: { code: { top: 12, bottom: 12, left: 16, right: 16 } },
+    contentTheme: {
+      easterEgg: { mode: 'off' },
+    },
     cliEasterEgg: true,
     cliSeed: 'cli-seed',
   });
@@ -108,7 +111,7 @@ test('normalizeEastereggConfig normalizes the easteregg config', () => {
   );
 });
 
-test('composeBackgroundPatternPlan is deterministic and stays within the curated set', () => {
+test('composeBackgroundPatternPlan deterministically selects a curated presentation preset', () => {
   const theme = {
     pattern: 'line-grid',
     patternSpacing: 48,
@@ -126,12 +129,43 @@ test('composeBackgroundPatternPlan is deterministic and stays within the curated
 
   assert.deepEqual(planA, planB);
   assert.notDeepEqual(planA, planC);
+  assert.equal(planA.mode, 'random-patterns');
+  assert.ok(planA.recipe);
+  assert.deepEqual(Object.keys(planA.presentation).sort(), [
+    'palette',
+    'pattern',
+    'patternBlend',
+    'patternMask',
+    'patternOpacity',
+    'patternSpacing',
+    'spacing',
+  ]);
+  assert.ok(['light', 'warm', 'midnight', 'slate', 'paper', 'clay'].includes(planA.presentation.palette));
+  assert.ok(['sm', 'md', 'lg'].includes(planA.presentation.spacing));
+  assert.ok(['dot-grid', 'line-grid', 'diagonal', 'halftone', 'dither', 'ascii', 'paper'].includes(planA.presentation.pattern));
   assert.ok(planA.layers.length >= 1 && planA.layers.length <= 2);
-  for (const layer of planA.layers) {
-    assert.ok(['none', 'dot-grid', 'line-grid', 'diagonal', 'halftone', 'dither', 'ascii', 'paper'].includes(layer.pattern));
-    assert.ok(['source-over', 'multiply', 'overlay', 'screen', 'soft-light'].includes(layer.blendMode));
-    assert.ok(layer.opacity >= 0.04 && layer.opacity <= 0.16);
-  }
+  assert.equal(planA.layers[0].pattern, planA.presentation.pattern);
+  assert.equal(planA.layers[0].spacing, planA.presentation.patternSpacing);
+  assert.ok(['source-over', 'multiply', 'overlay', 'screen', 'soft-light'].includes(planA.layers[0].blendMode));
+  assert.ok(planA.layers[0].opacity >= 0.04 && planA.layers[0].opacity <= 0.16);
+});
+
+test('composeBackgroundPatternPlan falls back to the normal plan if recipe selection fails', () => {
+  const theme = {
+    pattern: 'line-grid',
+    patternSpacing: 48,
+    patternOpacity: 0.08,
+    patternMask: 'none',
+    foreground: '#111111',
+    background: '#ffffff',
+  };
+  const easterEgg = { mode: 'random-patterns', seed: 'deck-123', intensity: 'medium' };
+  const context = { deckIdentity: 'deck-a', templateName: 'default', chooseRecipe: () => { throw new Error('boom'); } };
+
+  const plan = composeBackgroundPatternPlan(theme, easterEgg, context);
+  assert.equal(plan.mode, 'off');
+  assert.equal(plan.layers.length, 1);
+  assert.equal(plan.layers[0].pattern, 'line-grid');
 });
 
 test('composeBackgroundPatternPlan avoids dense overlays on dense bases', () => {
@@ -154,7 +188,7 @@ test('composeBackgroundPatternPlan avoids dense overlays on dense bases', () => 
   }
 });
 
-test('easteregg render is seeded, reproducible, and changes only the background', async () => {
+test('easteregg render is seeded, reproducible, and changes the presentation', async () => {
   const tmp = makeTempDir();
   const baselineDir = path.join(tmp, 'baseline');
   const remixDirA = path.join(tmp, 'remix-a');
@@ -205,7 +239,52 @@ test('easteregg render is seeded, reproducible, and changes only the background'
   assert.ok(sameColor(sample(remixSlideA.ctx, ...backgroundPoint), sample(remixSlideB.ctx, ...backgroundPoint), 0), 'expected the same seed to reproduce the same background pixels');
 });
 
-test('composer failures fall back to the standard background pattern path', () => {
+test('easteregg render stays visible on a dark masked deck', async () => {
+  const tmp = makeTempDir();
+  const baselineDir = path.join(tmp, 'baseline-dark');
+  const remixDir = path.join(tmp, 'remix-dark');
+
+  const content = {
+    theme: {
+      palette: 'midnight',
+      spacing: 'md',
+      fontFamily: 'sans',
+      pattern: 'line-grid',
+      patternSpacing: 42,
+      patternOpacity: 0.06,
+      patternMask: 'bottom',
+    },
+    cover: {
+      title: 'Pattern remix',
+      subtitle: 'Dark deck regression test',
+    },
+    sections: [
+      {
+        headline: 'Background remix',
+        body: [{ type: 'text', content: 'The remix should stay visible.' }],
+      },
+    ],
+  };
+
+  const easterEgg = { mode: 'random-patterns', seed: 'remix-seed-dark', intensity: 'low' };
+  renderContent(content, baselineDir);
+  renderContent({ ...content, easterEgg }, remixDir);
+
+  const baselineSlide = await loadSlide(path.join(baselineDir, 'slide-01.png'));
+  const remixSlide = await loadSlide(path.join(remixDir, 'slide-01.png'));
+
+  let changed = false;
+  for (const [x, y] of [[0, 0], [35, 0], [100, 0], [250, 0], [540, 0]]) {
+    if (!sameColor(sample(baselineSlide.ctx, x, y), sample(remixSlide.ctx, x, y), 0)) {
+      changed = true;
+      break;
+    }
+  }
+
+  assert.ok(changed, 'expected easteregg to change at least one sampled background pixel on a dark masked deck');
+});
+
+test('composer fallback stays safe when background spacing is non-positive', () => {
   const tmp = makeTempDir();
   const outDir = path.join(tmp, 'out');
   const content = {
@@ -215,9 +294,8 @@ test('composer failures fall back to the standard background pattern path', () =
       fontFamily: 'sans',
       pattern: 'line-grid',
       patternMask: 'none',
-      patternSpacing: 0,
+      patternSpacing: -8,
     },
-    easterEgg: { mode: 'random-patterns', seed: 'force-fallback', intensity: 'low' },
     cover: {
       title: 'Fallback test',
       subtitle: 'The render should still complete',

@@ -35,7 +35,7 @@ import {
 } from "./render-emoji.js";
 import { loadSectionImage } from "./render-image.js";
 import { planSectionPages } from "./render-pagination.js";
-import { deriveDeckIdentity, renderBackgroundPattern } from "./render-pattern.js";
+import { composeBackgroundPatternPlan, deriveDeckIdentity, renderBackgroundPattern } from "./render-pattern.js";
 import { renderCover } from "./render-cover.js";
 
 // --- Shiki syntax highlighter (lazy, cached by theme) ---
@@ -334,7 +334,7 @@ function createSlideCanvas(theme, patternContext = {}) {
   if (!patternHandled && theme.pattern && theme.pattern !== "none") {
     const opacity = theme.patternOpacity ?? 0.08;
     const color = theme.patternColor ?? theme.foreground;
-    const spacing = theme.patternSpacing ?? 48;
+    const spacing = Number.isFinite(theme.patternSpacing) && theme.patternSpacing > 0 ? theme.patternSpacing : 48;
     const cx = W / 2;
     const cy = H / 2;
     const offsetX = cx % spacing;
@@ -794,6 +794,27 @@ function expandSectionsForTables(sections, loadedImages, theme, layout, bodyFont
   return expanded;
 }
 
+function applyEastereggPresentation(theme, plan) {
+  const presentation = plan?.presentation;
+  if (!presentation) return theme;
+
+  const paletteName = presentation.palette ?? theme.palette;
+  const palette = COLOR_PALETTES[paletteName] || null;
+  const nextTheme = {
+    ...theme,
+    ...presentation,
+    palette: paletteName,
+  };
+
+  if (palette) {
+    for (const key of ["background", "backgroundGradient", "foreground", "mutedForeground", "subtleForeground", "accent", "cardBg", "cardTint"]) {
+      if (palette[key] !== undefined) nextTheme[key] = palette[key];
+    }
+  }
+
+  return nextTheme;
+}
+
 // --- Slide renderers ---
 const COVER_RENDER_DEPS = {
   TOKENS,
@@ -1068,7 +1089,7 @@ async function main() {
 
   // Merge priority (low → high):
   const contentTheme = content.theme || {};
-  const theme = resolveThemeConfig({
+  let theme = resolveThemeConfig({
     TOKENS,
     SEGMENT_PAD,
     contentTheme,
@@ -1078,6 +1099,20 @@ async function main() {
     cliEasterEgg,
     cliSeed,
   });
+
+  if (theme.easterEgg) {
+    const remixPlan = composeBackgroundPatternPlan(theme, theme.easterEgg, patternContext);
+    if (remixPlan?.mode === "random-patterns" && remixPlan.presentation) {
+      theme = applyEastereggPresentation(theme, remixPlan);
+      theme.easterEggPlan = remixPlan;
+    } else {
+      theme = {
+        ...theme,
+        easterEgg: null,
+        easterEggPlan: null,
+      };
+    }
+  }
 
   const layout = resolveLayout(theme, resolvedTemplate, TOKENS);
 

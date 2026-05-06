@@ -271,7 +271,7 @@ You can tune the look in `theme` with these knobs:
 }
 ```
 
-The easteregg remix mode is opt-in: set `"easterEgg": { "mode": "random-patterns", "seed": "..." }` in JSON or pass `--easteregg --seed <value>` on the CLI. It only changes background visuals and stays reproducible for the same seed.
+The easteregg remix mode is opt-in: set `"easterEgg": { "mode": "random-patterns", "seed": "..." }` in JSON or pass `--easteregg --seed <value>` on the CLI. CLI flags take precedence for enablement/seed, and the remix stays reproducible for the same seed plus the same deck/template identity. It now selects from a curated presentation recipe set (palette + spacing + pattern) and may layer a second subtle texture, while still staying visually safe. If remix composition fails, rendering falls back to the normal theme.
 
 ### Visual references
 

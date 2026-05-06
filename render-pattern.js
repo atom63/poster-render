@@ -3,6 +3,14 @@ import { createCanvas } from 'canvas';
 const ALL_PATTERNS = ['none', 'dot-grid', 'line-grid', 'diagonal', 'halftone', 'dither', 'ascii', 'paper'];
 const DENSE_PATTERNS = new Set(['dither', 'ascii']);
 const ALL_BLENDS = ['source-over', 'multiply', 'overlay', 'screen', 'soft-light'];
+const PRESENTATION_RECIPES = [
+  { name: 'editorial-light', palette: 'light', spacing: 'sm', pattern: 'line-grid', patternSpacing: 38, patternOpacity: 0.06, patternBlend: 'source-over' },
+  { name: 'warm-spotlight', palette: 'warm', spacing: 'md', pattern: 'paper', patternSpacing: 44, patternOpacity: 0.08, patternBlend: 'multiply' },
+  { name: 'midnight-editor', palette: 'midnight', spacing: 'lg', pattern: 'halftone', patternSpacing: 54, patternOpacity: 0.07, patternBlend: 'soft-light' },
+  { name: 'slate-grid', palette: 'slate', spacing: 'sm', pattern: 'dot-grid', patternSpacing: 40, patternOpacity: 0.08, patternBlend: 'overlay' },
+  { name: 'paper-archive', palette: 'paper', spacing: 'lg', pattern: 'ascii', patternSpacing: 34, patternOpacity: 0.05, patternBlend: 'source-over' },
+  { name: 'clay-print', palette: 'clay', spacing: 'md', pattern: 'dither', patternSpacing: 32, patternOpacity: 0.06, patternBlend: 'multiply' },
+];
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -85,7 +93,8 @@ export function normalizeEastereggConfig(value, { enabled = null, seed = null, i
 
   const requestedMode = raw?.mode;
   const requestedEnabled = enabled ?? (value === true || requestedMode === 'random-patterns' || raw?.enabled === true);
-  if (!requestedEnabled || value === false || requestedMode === 'off') return null;
+  if (!requestedEnabled) return null;
+  if (enabled !== true && (value === false || requestedMode === 'off')) return null;
 
   const normalizedSeed = normalizeSeedToken(seed ?? raw?.seed ?? raw?.easterEggSeed);
   return {
@@ -134,81 +143,81 @@ export function composeBackgroundPatternPlan(theme = {}, easterEgg = null, conte
   const enabled = easterEgg?.mode === 'random-patterns';
   if (!enabled) return defaultPlan;
 
-  const basePattern = sanitizePattern(theme.pattern);
-  if (theme.pattern && theme.pattern !== 'none' && basePattern === 'none') {
-    return defaultPlan;
-  }
+  try {
+    const seedToken = normalizeSeedToken(easterEgg.seed) ?? normalizeSeedToken(context.deckIdentity) ?? 'default';
+    const mixToken = [seedToken, normalizeSeedToken(context.deckIdentity) ?? '', normalizeSeedToken(context.templateName) ?? ''].join('|');
+    const random = mulberry32(hashString(mixToken));
+    const intensity = normalizeIntensity(easterEgg.intensity);
+    const chooser = typeof context.chooseRecipe === 'function' ? context.chooseRecipe : choice;
+    const recipe = chooser(PRESENTATION_RECIPES, random, { theme, easterEgg, context, intensity });
+    if (!recipe) return defaultPlan;
 
-  const rawSpacing = Number.isFinite(theme.patternSpacing) ? theme.patternSpacing : 48;
-  if (!Number.isFinite(rawSpacing) || rawSpacing <= 0) {
-    return defaultPlan;
-  }
+    const recipePresentation = {
+      palette: recipe.palette,
+      spacing: recipe.spacing,
+      pattern: recipe.pattern,
+      patternSpacing: recipe.patternSpacing,
+      patternOpacity: recipe.patternOpacity,
+      patternBlend: recipe.patternBlend,
+      patternMask: recipe.patternMask ?? 'none',
+    };
 
-  const seedToken = normalizeSeedToken(easterEgg.seed) ?? normalizeSeedToken(context.deckIdentity) ?? 'default';
-  const mixToken = [seedToken, normalizeSeedToken(context.deckIdentity) ?? '', normalizeSeedToken(context.templateName) ?? ''].join('|');
-  const random = mulberry32(hashString(mixToken));
-  const intensity = normalizeIntensity(easterEgg.intensity);
-
-  const layers = [];
-
-  if (basePattern !== 'none') {
-    const baseOpacityFloor = intensity === 'medium' ? 0.05 : 0.04;
-    const baseOpacityCeil = intensity === 'medium' ? 0.12 : 0.09;
-    const baseOpacity = clamp((theme.patternOpacity ?? 0.08) * (0.88 + random() * 0.28), baseOpacityFloor, baseOpacityCeil);
-    layers.push(buildLayerFromTheme(theme, {
+    const basePattern = sanitizePattern(recipe.pattern);
+    const layers = [buildLayerFromTheme(theme, {
+      ...recipePresentation,
       pattern: basePattern,
-      opacity: baseOpacity,
-      blendMode: 'source-over',
-      mask: theme.patternMask ?? 'bottom',
-      spacing: rawSpacing,
-    }));
-  }
+      opacity: recipe.patternOpacity,
+      blendMode: recipe.patternBlend,
+      mask: recipe.patternMask ?? 'none',
+      spacing: recipe.patternSpacing,
+    })];
 
-  const denseBase = DENSE_PATTERNS.has(basePattern);
-  const overlayPool = basePattern === 'none'
-    ? ['paper', 'dot-grid', 'line-grid']
-    : denseBase
+    const denseBase = DENSE_PATTERNS.has(basePattern);
+    const overlayPool = denseBase
       ? ['paper', 'dot-grid']
       : ALL_PATTERNS.filter((pattern) => pattern !== 'none' && pattern !== basePattern);
+    const overlayPattern = choice(overlayPool, random);
+    if (overlayPattern) {
+      const overlayOpacityFloor = intensity === 'medium' ? 0.06 : 0.04;
+      const overlayOpacityCeil = intensity === 'medium' ? 0.14 : 0.10;
+      const overlayOpacity = clamp(overlayOpacityFloor + random() * (overlayOpacityCeil - overlayOpacityFloor), overlayOpacityFloor, overlayOpacityCeil);
+      const overlayBlend = choice(intensity === 'medium' ? ['multiply', 'overlay', 'screen', 'soft-light'] : ['multiply', 'screen', 'soft-light'], random);
+      const spacingFactor = overlayPattern === 'paper'
+        ? 0.5 + random() * 0.35
+        : overlayPattern === 'dot-grid' || overlayPattern === 'line-grid'
+          ? 0.7 + random() * 0.6
+          : 0.8 + random() * 0.5;
+      const overlaySpacing = Math.max(4, Math.round(recipe.patternSpacing * spacingFactor));
 
-  const overlayPattern = choice(overlayPool, random);
-  if (!overlayPattern) return layers.length ? { mode: 'random-patterns', seed: seedToken, intensity, layers } : defaultPlan;
+      layers.push(buildLayerFromTheme(theme, {
+        pattern: overlayPattern,
+        opacity: overlayOpacity,
+        blendMode: overlayBlend,
+        mask: 'none',
+        spacing: overlaySpacing,
+        dotSize: theme.patternDotSize,
+        threshold: theme.patternThreshold,
+        fontSize: theme.patternFontSize,
+        chars: theme.patternChars,
+        vary: theme.patternVary,
+        halftoneDir: theme.patternHalftoneDir,
+        shape: theme.patternShape,
+        strokes: theme.patternStrokes,
+        dots: theme.patternDots,
+      }));
+    }
 
-  const overlayOpacityFloor = intensity === 'medium' ? 0.06 : 0.04;
-  const overlayOpacityCeil = intensity === 'medium' ? 0.14 : 0.10;
-  const overlayOpacity = clamp(overlayOpacityFloor + random() * (overlayOpacityCeil - overlayOpacityFloor), overlayOpacityFloor, overlayOpacityCeil);
-  const overlayBlend = choice(intensity === 'medium' ? ['multiply', 'overlay', 'screen', 'soft-light'] : ['multiply', 'screen', 'soft-light'], random);
-
-  const spacingFactor = overlayPattern === 'paper'
-    ? 0.5 + random() * 0.35
-    : overlayPattern === 'dot-grid' || overlayPattern === 'line-grid'
-      ? 0.7 + random() * 0.6
-      : 0.8 + random() * 0.5;
-  const overlaySpacing = Math.max(4, Math.round(rawSpacing * spacingFactor));
-
-  layers.push(buildLayerFromTheme(theme, {
-    pattern: overlayPattern,
-    opacity: overlayOpacity,
-    blendMode: overlayBlend,
-    mask: 'none',
-    spacing: overlaySpacing,
-    dotSize: theme.patternDotSize,
-    threshold: theme.patternThreshold,
-    fontSize: theme.patternFontSize,
-    chars: theme.patternChars,
-    vary: theme.patternVary,
-    halftoneDir: theme.patternHalftoneDir,
-    shape: theme.patternShape,
-    strokes: theme.patternStrokes,
-    dots: theme.patternDots,
-  }));
-
-  return {
-    mode: 'random-patterns',
-    seed: seedToken,
-    intensity,
-    layers,
-  };
+    return {
+      mode: 'random-patterns',
+      seed: seedToken,
+      intensity,
+      recipe: recipe.name,
+      presentation: recipePresentation,
+      layers,
+    };
+  } catch {
+    return defaultPlan;
+  }
 }
 
 function drawLayerPattern(ctx, layer, tokens) {
@@ -442,7 +451,7 @@ function drawLayerPattern(ctx, layer, tokens) {
 }
 
 export function renderBackgroundPattern(ctx, theme = {}, tokens, patternContext = {}) {
-  const plan = composeBackgroundPatternPlan(theme, theme.easterEgg, patternContext);
+  const plan = theme.easterEggPlan ?? composeBackgroundPatternPlan(theme, theme.easterEgg, patternContext);
   for (const layer of plan.layers) {
     drawLayerPattern(ctx, layer, tokens);
   }
