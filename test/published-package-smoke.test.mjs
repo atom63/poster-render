@@ -30,7 +30,7 @@ test('published tarball installs and renders through the installed bin', () => {
   const tarball = path.join(packDir, packed[0].filename);
   execFileSync(
     'npm',
-    ['install', '--offline', '--no-audit', '--no-fund', tarball],
+    ['install', '--prefer-offline', '--no-audit', '--no-fund', tarball],
     { cwd: installDir, stdio: ['ignore', 'pipe', 'pipe'] },
   );
 
