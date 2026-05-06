@@ -354,7 +354,7 @@ Supported languages for syntax highlighting: `js`, `ts`, `python`, `rust`, `go`,
 
 ## Release status
 
-This repository is already solid for local use and open-source development: it includes package metadata, installable bin entries, a license, a sample input file, basic verification scripts, and node:test coverage for table pagination, wrapped code rendering, and tarball install smoke checks. It is publishable as-is; the remaining work is mainly release automation if you want regular npm publishes.
+This repository is already solid for local use and open-source development: it includes package metadata, installable bin entries, a license, a sample input file, basic verification scripts, and node:test coverage for table pagination, wrapped code rendering, and tarball install + render smoke checks. It is publishable as-is; the remaining work is mainly release automation if you want regular npm publishes.
 
 ## Contributing
 
