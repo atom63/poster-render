@@ -4,17 +4,6 @@ Node.js CLI that renders Xiaohongshu (XHS) carousel poster slides as PNG images.
 
 Open source, MIT licensed, and designed to be easy to extend. Issues and PRs are welcome.
 
-### Markdown render demos
-
-These three slides are rendered from the Markdown adapter output, so they show
-what survives conversion: headings, lists, blockquotes, code fences, and tables.
-
-| Variant | Preview |
-| --- | --- |
-| EN / technical / midnight | <img src="docs/assets/reference/markdown/en-technical-midnight.png" width="520" alt="markdown render demo en technical midnight" /> |
-| CN / slate / line-grid | <img src="docs/assets/reference/markdown/cn-slate-linegrid.png" width="520" alt="markdown render demo cn slate line-grid" /> |
-| EN / dark / dither | <img src="docs/assets/reference/markdown/en-dark-dither.png" width="520" alt="markdown render demo en dark dither" /> |
-
 ## Install
 
 ```sh
@@ -69,6 +58,18 @@ npx poster-render content.json
   "cta": "Try it yourself"
 }
 ```
+
+### Markdown render demos
+
+These three slides are rendered from the Markdown adapter output, so they show
+what survives conversion: headings, lists, blockquotes, code fences, and tables.
+
+| Variant | Preview |
+| --- | --- |
+| EN / technical / midnight | <img src="docs/assets/reference/markdown/en-technical-midnight.png" width="520" alt="markdown render demo en technical midnight" /> |
+| CN / slate / line-grid | <img src="docs/assets/reference/markdown/cn-slate-linegrid.png" width="520" alt="markdown render demo cn slate line-grid" /> |
+| EN / dark / dither | <img src="docs/assets/reference/markdown/en-dark-dither.png" width="520" alt="markdown render demo en dark dither" /> |
+
 
 ## Prerequisites
 
