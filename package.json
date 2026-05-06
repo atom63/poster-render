@@ -32,6 +32,7 @@
     "render.js",
     "render-pagination.js",
     "render-emoji.js",
+    "render-image.js",
     "markdown-to-content.js",
     "README.md",
     "LICENSE",
@@ -43,7 +44,7 @@
     "render": "node render.js content.json",
     "sample": "node render.js examples/sample-content.json --output ./output-sample",
     "markdown:content": "node markdown-to-content.js",
-    "lint": "node --check render.js && node --check render-pagination.js && node --check render-emoji.js && node --check render-config.js && node --check render-segments.js && node --check render-table.js && node --check markdown-to-content.js",
+    "lint": "node --check render.js && node --check render-pagination.js && node --check render-emoji.js && node --check render-image.js && node --check render-config.js && node --check render-segments.js && node --check render-table.js && node --check markdown-to-content.js",
     "test": "node --test test/*.mjs"
   },
   "dependencies": {
