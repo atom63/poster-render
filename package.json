@@ -30,6 +30,9 @@
   },
   "files": [
     "render.js",
+    "render-config.js",
+    "render-segments.js",
+    "render-table.js",
     "render-cover.js",
     "render-pagination.js",
     "render-emoji.js",
