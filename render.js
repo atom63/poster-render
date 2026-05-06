@@ -1118,7 +1118,10 @@ async function main() {
 
 const entryPath = process.argv[1] ? fs.realpathSync(process.argv[1]) : null;
 if (entryPath && pathToFileURL(entryPath).href === import.meta.url) {
-  main();
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }
 
 export { fitCodeChunk, countWrappedCodeLines, measureCodeHeight, estimateCoverKicker, TEMPLATE_REGISTRY, resolveTemplateName, resolveTemplate };
