@@ -245,7 +245,7 @@ You can tune the look in `theme` with these knobs:
 
 ### Visual references
 
-Each section below uses one standalone preview per item so the differences stay readable in GitHub’s table layout.
+Each section below uses one standalone full-slide preview per item so the differences stay readable in GitHub’s table layout.
 
 #### Background palettes
 
