@@ -257,6 +257,37 @@ test('auto-generates a reading-time kicker from deck text', () => {
   assert.ok(!kicker.includes('AI Agent 产品怎么定价才不亏钱？'));
 });
 
+test('markdown adapter preserves relative image paths through sourceDir', async () => {
+  const tmp = makeTempDir();
+  const sourceDir = path.join(tmp, 'source');
+  const outputDir = path.join(tmp, 'output');
+  fs.mkdirSync(sourceDir, { recursive: true });
+
+  const imagePath = path.join(sourceDir, 'asset.png');
+  const imageCanvas = createCanvas(120, 80);
+  const imageCtx = imageCanvas.getContext('2d');
+  imageCtx.fillStyle = '#ff0000';
+  imageCtx.fillRect(0, 0, imageCanvas.width, imageCanvas.height);
+  fs.writeFileSync(imagePath, imageCanvas.toBuffer('image/png'));
+
+  const markdownPath = path.join(sourceDir, 'input.md');
+  const contentPath = path.join(outputDir, 'content.json');
+  const markdown = `# Relative image test\n\n![cover-ish](./asset.png)\n`;
+  fs.writeFileSync(markdownPath, markdown);
+
+  execFileSync(nodeBin, ['markdown-to-content.js', markdownPath, '--output', contentPath], { cwd: repo, stdio: 'pipe' });
+  const parsed = JSON.parse(fs.readFileSync(contentPath, 'utf8'));
+  assert.equal(parsed.sourceDir, sourceDir);
+
+  const renderOut = path.join(tmp, 'rendered');
+  execFileSync(nodeBin, ['render.js', contentPath, '--output', renderOut], { cwd: repo, stdio: 'pipe' });
+
+  const { ctx } = await loadSlide(path.join(renderOut, 'slide-02.png'));
+  const bg = sample(ctx, 10, 10);
+  const imagePixel = sample(ctx, 200, 120);
+  assert.ok(!sameColor(imagePixel, bg), 'expected the relative image to render instead of falling back to background');
+});
+
 test('measureSectionHeight reserves space for emoji fallback text', () => {
   const section = {
     body: [{ type: 'callout', emoji: '🚀', content: 'hello' }],

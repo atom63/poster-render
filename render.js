@@ -816,6 +816,12 @@ function renderCTA(content, theme, layout, slideNum, totalSlides) {
   return canvas;
 }
 
+function resolveAssetPath(baseDir, assetPath) {
+  if (!assetPath) return assetPath;
+  if (path.isAbsolute(assetPath)) return assetPath;
+  return path.resolve(baseDir, assetPath);
+}
+
 async function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides) {
   const slides = [];
   const bodyFont = fontString("body", theme.fontFamily);
@@ -1021,14 +1027,19 @@ async function main() {
   const resolvedTemplate = resolveTemplate(resolveTemplateName(content));
   content.template = resolvedTemplate.name;
   if (content.boardStyle !== undefined) delete content.boardStyle;
+  const assetBaseDir = content.sourceDir ? path.resolve(content.sourceDir) : path.dirname(path.resolve(inputFile));
   const cover = content.cover || {};
   const autoCoverKicker = estimateCoverKicker(content);
   content.cover = {
     ...cover,
+    coverImage: resolveAssetPath(assetBaseDir, cover.coverImage),
     kicker: (parsed.cliNoCoverKicker || cover.showKicker === false)
       ? null
       : (cover.kicker && String(cover.kicker).trim() ? cover.kicker : autoCoverKicker),
   };
+  content.sections = (content.sections || []).map((section) => (
+    section.image ? { ...section, image: resolveAssetPath(assetBaseDir, section.image) } : section
+  ));
 
   // Merge priority (low → high):
   const contentTheme = content.theme || {};

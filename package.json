@@ -40,6 +40,7 @@
     "markdown-to-content.js",
     "README.md",
     "LICENSE",
+    "docs/assets/reference",
     "examples/sample-content.json",
     "examples/sample-markdown.md"
   ],

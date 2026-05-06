@@ -438,6 +438,7 @@ function parseMarkdown(markdown, inputFile) {
   return {
     cover,
     sections,
+    sourceDir: path.dirname(inputFile),
     cta: "继续用 Markdown 迭代内容，再运行 markdown-to-content.js 和 poster-render。",
   };
 }
