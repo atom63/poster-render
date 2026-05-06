@@ -65,7 +65,8 @@ export function measureSectionHeight(
         const hasEmojiImg = seg.emoji && isEmoji(seg.emoji);
         const emojiOffset = hasEmojiImg ? emojiSize + emojiGap : 0;
         const innerW = layout.contentWidth - pad.left - pad.right - emojiOffset;
-        const displayText = (!hasEmojiImg && seg.emoji ? seg.emoji + " " : "") + seg.content;
+        // Reserve space for the fallback text path too, so missing Twemoji does not under-measure.
+        const displayText = (seg.emoji ? (deps.EMOJI_ASCII_FALLBACK[seg.emoji] || seg.emoji) + " " : "") + seg.content;
         const textH = measureTextHeight(displayText, bodyFont, innerW, bodyLineHeight);
         const minH = hasEmojiImg ? Math.max(textH, emojiSize) : textH;
         h += pad.top + minH + pad.bottom;

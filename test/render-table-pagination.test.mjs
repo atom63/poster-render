@@ -8,6 +8,7 @@ import { createCanvas, loadImage } from 'canvas';
 import { countWrappedCodeLines, measureCodeHeight, estimateCoverKicker } from '../render.js';
 import { planSectionPages } from '../render-pagination.js';
 import { loadSectionImage } from '../render-image.js';
+import { measureSectionHeight } from '../render-segments.js';
 
 const repo = process.cwd();
 const nodeBin = process.execPath;
@@ -255,6 +256,40 @@ test('auto-generates a reading-time kicker from deck text', () => {
   assert.match(kicker, /^全文 \d+字 · \d+分钟阅读$/);
   assert.ok(!kicker.includes('AI Agent 产品怎么定价才不亏钱？'));
 });
+
+test('measureSectionHeight reserves space for emoji fallback text', () => {
+  const section = {
+    body: [{ type: 'callout', emoji: '🚀', content: 'hello' }],
+  };
+
+  const height = measureSectionHeight(
+    section,
+    'headline-font',
+    'body-font',
+    40,
+    24,
+    { contentWidth: 200, headlineToBody: 12 },
+    {},
+    0,
+    {
+      TOKENS: { type: { body: { size: 20 }, code: { size: 20, lineHeight: 24 } } },
+      antiWidowWidth: () => 120,
+      measureTextHeight: (text) => (text.startsWith('>> ') ? 96 : 48),
+      measureCodeHeight: () => 0,
+      measureTableSegmentHeight: () => 0,
+      isEmoji: () => true,
+      resolveThemeNumber: (value, fallback) => (value ?? fallback),
+      measureCtx: {},
+      prepareWithSegments: () => ({}),
+      layoutNextLine: () => null,
+      paragraphGap: 1,
+      EMOJI_ASCII_FALLBACK: { '🚀': '>>' },
+    },
+  );
+
+  assert.equal(height, 136);
+});
+
 
 test('planSectionPages keeps image sections on a fresh page and respects height limits', () => {
   const sections = [
