@@ -33,6 +33,7 @@ import {
   isEmoji,
   loadEmojiImage,
 } from "./render-emoji.js";
+import { planSectionPages } from "./render-pagination.js";
 
 // --- Shiki syntax highlighter (lazy, cached by theme) ---
 const _shikiCache = {};
@@ -1152,35 +1153,25 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
   // maxH: cap at contentWidth so 1:1 images fill full width; 16:9 / 4:3 are naturally shorter
   const loadedImages = sections.map((s) => s.imgData || null);
 
-  // Group sections into pages (sections with images always get their own page)
-  const pages = [];
-  let currentPage = [], usedH = 0;
-  for (let si = 0; si < sections.length; si++) {
-    const imgData = loadedImages[si];
-    const secH = measureSectionHeight(
-      sections[si],
-      headlineFont,
-      bodyFont,
-      headLH,
-      bodyLH,
-      layout,
-      codeStyle,
-      imgData?.drawH ?? 0,
-      SECTION_RENDER_DEPS
-    );
-    const gap = currentPage.length > 0 ? (sections[si].noGap ? 0 : sectionGap) : 0;
-    // Sections with images always start a new page
-    const forceNewPage = imgData && currentPage.length > 0;
-    if (forceNewPage || (currentPage.length > 0 && usedH + gap + secH > AVAILABLE_H)) {
-      pages.push(currentPage);
-      currentPage = [si];
-      usedH = secH;
-    } else {
-      currentPage.push(si);
-      usedH += gap + secH;
-    }
-  }
-  if (currentPage.length > 0) pages.push(currentPage);
+  const pages = planSectionPages(sections, {
+    availableHeight: AVAILABLE_H,
+    getSectionHeight: (section, si) => {
+      const imgData = loadedImages[si];
+      return measureSectionHeight(
+        section,
+        headlineFont,
+        bodyFont,
+        headLH,
+        bodyLH,
+        layout,
+        codeStyle,
+        imgData?.drawH ?? 0,
+        SECTION_RENDER_DEPS,
+      );
+    },
+    getSectionGap: (section) => (section.noGap ? 0 : sectionGap),
+    getSectionImage: (section, si) => loadedImages[si],
+  });
 
   let slideNum = startSlideNum;
   for (const pageIndices of pages) {
@@ -1382,35 +1373,28 @@ async function main() {
 
   const sections = expandSectionsForTables(content.sections, loadedImages, theme, layout, bodyFont, headlineFont, headLH, bodyLH);
 
-  // Dry-run: count slides (sections with images always get their own page)
-  let dryCount = 0, dryUsed = 0, dryHas = false;
-  for (let si = 0; si < sections.length; si++) {
-    const imgData = sections[si].imgData;
-    const secH = measureSectionHeight(
-      sections[si],
-      headlineFont,
-      bodyFont,
-      headLH,
-      bodyLH,
-      layout,
-      codeStyle,
-      imgData?.drawH ?? 0,
-      SECTION_RENDER_DEPS
-    );
-    const gap = dryHas ? (sections[si].noGap ? 0 : layout.sectionGap) : 0;
-    const forceNewPage = imgData && dryHas;
-    if (forceNewPage || (dryHas && dryUsed + gap + secH > AVAILABLE_H)) {
-      dryCount++;
-      dryUsed = secH;
-    } else {
-      dryUsed += gap + secH;
-      dryHas = true;
-    }
-  }
-  if (dryHas) dryCount++;
+  const pages = planSectionPages(sections, {
+    availableHeight: AVAILABLE_H,
+    getSectionHeight: (section, si) => {
+      const imgData = sections[si].imgData;
+      return measureSectionHeight(
+        section,
+        headlineFont,
+        bodyFont,
+        headLH,
+        bodyLH,
+        layout,
+        codeStyle,
+        imgData?.drawH ?? 0,
+        SECTION_RENDER_DEPS,
+      );
+    },
+    getSectionGap: (section) => (section.noGap ? 0 : layout.sectionGap),
+    getSectionImage: (section) => section.imgData,
+  });
 
   const hasCTA = Boolean(content.cta && content.cta.trim());
-  const totalSlides = 1 + dryCount + (hasCTA ? 1 : 0);
+  const totalSlides = 1 + pages.length + (hasCTA ? 1 : 0);
 
   const allSlides = [];
   allSlides.push(await renderCover(content, theme, layout, totalSlides, resolvedTemplate));
