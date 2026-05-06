@@ -35,6 +35,7 @@ import {
 } from "./render-emoji.js";
 import { loadSectionImage } from "./render-image.js";
 import { planSectionPages } from "./render-pagination.js";
+import { deriveDeckIdentity, renderBackgroundPattern } from "./render-pattern.js";
 import { renderCover } from "./render-cover.js";
 
 // --- Shiki syntax highlighter (lazy, cached by theme) ---
@@ -300,7 +301,7 @@ function tryRegisterFonts() {
 
 // --- Canvas creation ---
 // bg: solid color string, or gradient will be applied if theme.backgroundGradient is set
-function createSlideCanvas(theme) {
+function createSlideCanvas(theme, patternContext = {}) {
   const canvas = createCanvas(TOKENS.canvas.width, TOKENS.canvas.height);
   const ctx = canvas.getContext("2d");
   const W = TOKENS.canvas.width;
@@ -317,7 +318,20 @@ function createSlideCanvas(theme) {
   ctx.fillRect(0, 0, W, H);
 
   // Background pattern overlay with optional gradient mask
-  if (theme.pattern && theme.pattern !== "none") {
+  let patternHandled = false;
+  if (theme.easterEgg) {
+    try {
+      renderBackgroundPattern(ctx, theme, {
+        width: W,
+        height: H,
+        monoFontName: TOKENS.fonts.mono.name,
+      }, patternContext);
+      patternHandled = true;
+    } catch {
+      patternHandled = false;
+    }
+  }
+  if (!patternHandled && theme.pattern && theme.pattern !== "none") {
     const opacity = theme.patternOpacity ?? 0.08;
     const color = theme.patternColor ?? theme.foreground;
     const spacing = theme.patternSpacing ?? 48;
@@ -794,8 +808,8 @@ const COVER_RENDER_DEPS = {
   createCanvas,
 };
 
-function renderCTA(content, theme, layout, slideNum, totalSlides) {
-  const { canvas, ctx } = createSlideCanvas(theme);
+function renderCTA(content, theme, layout, slideNum, totalSlides, patternContext = {}) {
+  const { canvas, ctx } = createSlideCanvas(theme, patternContext);
   const ctaFont = fontString("headline", theme.fontFamily);
   const ctaW = antiWidowWidth(content.cta, ctaFont, layout.contentWidth);
   let y = layout.padY;
@@ -822,7 +836,7 @@ function resolveAssetPath(baseDir, assetPath) {
   return path.resolve(baseDir, assetPath);
 }
 
-async function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides) {
+async function renderContentSlides(sections, theme, layout, startSlideNum, totalSlides, patternContext = {}) {
   const slides = [];
   const bodyFont = fontString("body", theme.fontFamily);
   const headlineFont = fontString("headline", theme.fontFamily);
@@ -872,7 +886,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
   let slideNum = startSlideNum;
   for (const pageIndices of pages) {
-    const { canvas, ctx } = createSlideCanvas(theme);
+    const { canvas, ctx } = createSlideCanvas(theme, patternContext);
     let y = layout.contentTop;
 
     for (let i = 0; i < pageIndices.length; i++) {
@@ -948,7 +962,7 @@ async function main() {
   // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
   const args = process.argv.slice(2);
   const printUsage = () => {
-    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--no-cover-kicker] [--help]");
+    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--easteregg] [--seed <value>] [--no-cover-kicker] [--help]");
   };
 
   const parseArgs = () => {
@@ -957,21 +971,28 @@ async function main() {
     let cliPalette = null;
     let cliOutput = "./output";
     let cliNoCoverKicker = false;
+    let cliEasterEgg = false;
+    let cliSeed = null;
 
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
       if (arg === "-h" || arg === "--help") {
         return { help: true };
       }
-      if (arg === "--spacing" || arg === "--palette" || arg === "--output") {
+      if (arg === "--spacing" || arg === "--palette" || arg === "--output" || arg === "--seed") {
         const value = args[i + 1];
         if (!value || value.startsWith("--")) {
           throw new Error(`Missing value for ${arg}`);
         }
         if (arg === "--spacing") cliSpacing = value;
         else if (arg === "--palette") cliPalette = value;
+        else if (arg === "--seed") cliSeed = value;
         else cliOutput = value;
         i++;
+        continue;
+      }
+      if (arg === "--easteregg" || arg === "--easter-egg") {
+        cliEasterEgg = true;
         continue;
       }
       if (arg === "--no-cover-kicker") {
@@ -987,7 +1008,7 @@ async function main() {
       inputFile = arg;
     }
 
-    return { inputFile, cliSpacing, cliPalette, cliOutput, cliNoCoverKicker };
+    return { inputFile, cliSpacing, cliPalette, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed };
   };
 
 
@@ -1005,7 +1026,7 @@ async function main() {
     process.exit(0);
   }
 
-  const { inputFile, cliSpacing, cliPalette, cliOutput } = parsed;
+  const { inputFile, cliSpacing, cliPalette, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed } = parsed;
   if (!inputFile) {
     printUsage();
     process.exit(1);
@@ -1027,13 +1048,17 @@ async function main() {
   const resolvedTemplate = resolveTemplate(resolveTemplateName(content));
   content.template = resolvedTemplate.name;
   if (content.boardStyle !== undefined) delete content.boardStyle;
+  const patternContext = {
+    deckIdentity: deriveDeckIdentity(content),
+    templateName: resolvedTemplate.name,
+  };
   const assetBaseDir = content.sourceDir ? path.resolve(content.sourceDir) : path.dirname(path.resolve(inputFile));
   const cover = content.cover || {};
   const autoCoverKicker = estimateCoverKicker(content);
   content.cover = {
     ...cover,
     coverImage: resolveAssetPath(assetBaseDir, cover.coverImage),
-    kicker: (parsed.cliNoCoverKicker || cover.showKicker === false)
+    kicker: (cliNoCoverKicker || cover.showKicker === false)
       ? null
       : (cover.kicker && String(cover.kicker).trim() ? cover.kicker : autoCoverKicker),
   };
@@ -1047,8 +1072,11 @@ async function main() {
     TOKENS,
     SEGMENT_PAD,
     contentTheme,
+    contentEasterEgg: content.easterEgg,
     cliPalette,
     cliSpacing,
+    cliEasterEgg,
+    cliSeed,
   });
 
   const layout = resolveLayout(theme, resolvedTemplate, TOKENS);
@@ -1099,10 +1127,10 @@ async function main() {
   const totalSlides = 1 + pages.length + (hasCTA ? 1 : 0);
 
   const allSlides = [];
-  allSlides.push(await renderCover(content, theme, layout, totalSlides, resolvedTemplate, COVER_RENDER_DEPS));
-  allSlides.push(...await renderContentSlides(sections, theme, layout, 2, totalSlides));
+  allSlides.push(await renderCover(content, theme, layout, totalSlides, resolvedTemplate, { ...COVER_RENDER_DEPS, patternContext }));
+  allSlides.push(...await renderContentSlides(sections, theme, layout, 2, totalSlides, patternContext));
   if (hasCTA) {
-    allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides));
+    allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides, patternContext));
   }
 
   const outDir = path.resolve(cliOutput);

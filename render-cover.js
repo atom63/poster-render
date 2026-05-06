@@ -11,7 +11,7 @@ export async function renderCover(content, theme, layout, totalSlides, template,
     drawSlideCounter,
     createCanvas,
   } = deps;
-  const { canvas, ctx } = createSlideCanvas(theme);
+  const { canvas, ctx } = createSlideCanvas(theme, deps.patternContext || {});
 
   if (content.cover.coverImage) {
     const W = TOKENS.canvas.width;

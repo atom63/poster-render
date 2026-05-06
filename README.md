@@ -114,7 +114,7 @@ Emoji are rendered through Twemoji PNGs when possible, but offline or blocked ne
 
 ```sh
 npm run render                          # renders content.json → ./output/
-node render.js <content.json> [--help] [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] # explicit file + options
+node render.js <content.json> [--help] [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--easteregg] [--seed <value>] # explicit file + options
 ```
 
 If installed globally or via `npx`, use:
@@ -135,6 +135,8 @@ Sections are **auto-paginated**: if a section body is too tall for a slide, it i
 | `--output <dir>` | any path | Output directory (default: `./output`) |
 | `--palette <name>` | see palettes | Override palette from CLI |
 | `--spacing <size>` | `sm` \| `md` \| `lg` | Override spacing from CLI |
+| `--easteregg` | flag | Enable seeded background remix mode |
+| `--seed <value>` | any string | Seed for the easteregg remix |
 
 **Example:**
 
@@ -268,6 +270,8 @@ You can tune the look in `theme` with these knobs:
   }
 }
 ```
+
+The easteregg remix mode is opt-in: set `"easterEgg": { "mode": "random-patterns", "seed": "..." }` in JSON or pass `--easteregg --seed <value>` on the CLI. It only changes background visuals and stays reproducible for the same seed.
 
 ### Visual references
 

@@ -91,6 +91,8 @@ export const TEMPLATE_REGISTRY = {
   },
 };
 
+import { normalizeEastereggConfig } from "./render-pattern.js";
+
 export function resolveThemeNumber(value, fallback) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -131,8 +133,11 @@ export function resolveThemeConfig({
   TOKENS,
   SEGMENT_PAD,
   contentTheme = {},
+  contentEasterEgg = null,
   cliPalette,
   cliSpacing,
+  cliEasterEgg = false,
+  cliSeed = null,
   colorPalettes = COLOR_PALETTES,
 }) {
   const paletteName = cliPalette || contentTheme.palette || TOKENS.theme.palette;
@@ -150,6 +155,12 @@ export function resolveThemeConfig({
   }
 
   if (cliSpacing && SPACING_PRESETS[cliSpacing]) theme.spacing = cliSpacing;
+
+  const normalizedEasterEgg = normalizeEastereggConfig(contentEasterEgg ?? contentTheme.easterEgg, {
+    enabled: cliEasterEgg ? true : null,
+    seed: cliSeed,
+  });
+  theme.easterEgg = normalizedEasterEgg;
 
   theme.codeFontSize = resolveThemeNumber(theme.codeFontSize, TOKENS.type.code.size);
   theme.codeLineHeight = resolveThemeNumber(theme.codeLineHeight, TOKENS.type.code.lineHeight);
