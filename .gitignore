@@ -10,6 +10,8 @@ emoji-cache/
 
 # Custom fonts (not redistributable)
 fonts/
+!docs/assets/reference/fonts/
+!docs/assets/reference/fonts/*.png
 
 # Test fixtures & local images
 test-*.json
