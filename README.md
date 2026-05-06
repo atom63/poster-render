@@ -168,6 +168,17 @@ Example loop for OpenClaw / Hermes / Claude-style workflows:
 This keeps `poster-render` focused on rendering JSON to PNG. Markdown is the
 universal adapter layer; other sources can stay separate and optional.
 
+### Markdown render demos
+
+These three slides are rendered from the Markdown adapter output, so they show
+what survives conversion: headings, lists, blockquotes, code fences, and tables.
+
+| Variant | Preview |
+| --- | --- |
+| EN / technical / midnight | <img src="docs/assets/reference/markdown/en-technical-midnight.png" width="520" alt="markdown render demo en technical midnight" /> |
+| CN / slate / line-grid | <img src="docs/assets/reference/markdown/cn-slate-linegrid.png" width="520" alt="markdown render demo cn slate line-grid" /> |
+| EN / dark / dither | <img src="docs/assets/reference/markdown/en-dark-dither.png" width="520" alt="markdown render demo en dark dither" /> |
+
 ## content.json schema
 
 ```jsonc
