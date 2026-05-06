@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createCanvas, loadImage } from 'canvas';
-import { countWrappedCodeLines, measureCodeHeight } from '../render.js';
+import { countWrappedCodeLines, measureCodeHeight, estimateCoverKicker } from '../render.js';
 
 const repo = process.cwd();
 const nodeBin = process.execPath;
@@ -224,6 +224,34 @@ test('renders body text after a table in the same section', async () => {
   const sampleX = 72;
   const blocks = countContentBlocks(ctx, sampleX);
   assert.ok(blocks >= 3, `expected headline, table, and body blocks; got ${blocks}`);
+});
+
+test('auto-generates a reading-time kicker from deck text', () => {
+  const content = {
+    cover: {
+      title: 'AI Agent 产品怎么定价才不亏钱？',
+      subtitle: '先算 unit economics，再选 seat / usage / workflow / outcome',
+    },
+    sections: [
+      {
+        headline: 'Why this matters',
+        body: [
+          { type: 'text', content: 'One two three four five six seven eight nine ten.' },
+          { type: 'callout', content: 'Callout text' },
+          {
+            type: 'table',
+            header: ['Name', 'Value'],
+            rows: [['Alpha', '1'], ['Beta', '2']],
+          },
+        ],
+      },
+    ],
+    cta: 'Ship it',
+  };
+
+  const kicker = estimateCoverKicker(content);
+  assert.match(kicker, /^全文 \d+字 · \d+分钟阅读$/);
+  assert.ok(!kicker.includes('AI Agent 产品怎么定价才不亏钱？'));
 });
 
 test('measures long code tokens using wrapped line count', () => {

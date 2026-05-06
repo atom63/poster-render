@@ -189,6 +189,59 @@ function measureCodeHeight(ctx, code, fontSize, lineHeight, maxWidth) {
   return totalH;
 }
 
+function stripReadingText(text) {
+  return String(text)
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/!\[[^\]]*\]\((?:[^()\\]|\\.)*\)/g, " ")
+    .replace(/\[([^\]]+)\]\((?:[^()\\]|\\.)*\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*(?:[-*+]\s+|\d+\.\s+)/gm, "")
+    .replace(/\|/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function collectReadingText(value, acc = []) {
+  if (value == null) return acc;
+  if (typeof value === "string") {
+    acc.push(value);
+    return acc;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectReadingText(item, acc);
+    return acc;
+  }
+  if (typeof value === "object") {
+    if (typeof value.content === "string") acc.push(value.content);
+    if (typeof value.headline === "string") acc.push(value.headline);
+    if (typeof value.title === "string") acc.push(value.title);
+    if (typeof value.subtitle === "string") acc.push(value.subtitle);
+    if (typeof value.alt === "string") acc.push(value.alt);
+    if (Array.isArray(value.header)) collectReadingText(value.header, acc);
+    if (Array.isArray(value.rows)) collectReadingText(value.rows, acc);
+  }
+  return acc;
+}
+
+function estimateCoverKicker(content) {
+  const fragments = [];
+  collectReadingText(content?.sections ?? [], fragments);
+  collectReadingText(content?.cta ?? "", fragments);
+  collectReadingText(content?.tags ?? "", fragments);
+  if (fragments.length === 0) {
+    collectReadingText(content?.cover?.title ?? "", fragments);
+    collectReadingText(content?.cover?.subtitle ?? "", fragments);
+  }
+
+  const text = stripReadingText(fragments.join("\n\n"));
+  const charCount = [...text.replace(/\s+/g, "")].length;
+  const safeCount = Math.max(charCount, 1);
+  const minutes = Math.max(1, Math.round(safeCount / 480));
+  return `全文 ${safeCount.toLocaleString("en-US")}字 · ${minutes}分钟阅读`;
+}
+
 // Polyfill OffscreenCanvas for pretext (which uses it for text measurement)
 globalThis.OffscreenCanvas = class OffscreenCanvas {
   constructor(w, h) {
@@ -1402,6 +1455,10 @@ async function renderCover(content, theme, layout, totalSlides) {
       withRoundedClip(0, 0, W, imgH, 40, 40, 0, 0, () => drawCoverImg(0, 0, W, imgH));
 
       let y = imgH + Math.round(layout.padY * 0.75);
+      if (cover.kicker) {
+        y = drawTextBlock(cover.kicker, subFont, theme.mutedForeground, layout.contentX, y, antiWidowWidth(cover.kicker, subFont, layout.contentWidth), TOKENS.type.subtitle.lineHeight);
+        y += Math.round(layout.headlineToBody * 0.65);
+      }
       y = drawTextBlock(cover.title, titleFont, theme.foreground, layout.contentX, y, antiWidowWidth(cover.title, titleFont, layout.contentWidth), cardTitleLH);
       if (cover.subtitle) {
         y += layout.headlineToBody;
@@ -1412,8 +1469,25 @@ async function renderCover(content, theme, layout, totalSlides) {
     // Text-only cover (existing behaviour)
     const titleFont = fontString("title", theme.fontFamily);
     const subFont   = fontString("subtitle", theme.fontFamily);
+    const kickerFont = fontString("small", theme.fontFamily);
     const subtitleGap = Math.round(layout.headlineToBody * 1.5);
     let y = layout.padY;
+
+    if (content.cover.kicker) {
+      const kickerW = antiWidowWidth(content.cover.kicker, kickerFont, layout.contentWidth);
+      ctx.fillStyle = theme.mutedForeground;
+      ctx.font = kickerFont;
+      let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+      const kickerPrepared = prepareWithSegments(content.cover.kicker, kickerFont, { whiteSpace: "pre-wrap" });
+      while (true) {
+        const line = layoutNextLine(kickerPrepared, cursor, kickerW);
+        if (line === null) break;
+        ctx.fillText(line.text, layout.contentX, y);
+        cursor = line.end;
+        y += TOKENS.type.small.lineHeight;
+      }
+      y += Math.round(layout.headlineToBody * 0.7);
+    }
 
     const titleW = antiWidowWidth(content.cover.title, titleFont, layout.contentWidth);
     ctx.fillStyle = theme.foreground;
@@ -1740,7 +1814,7 @@ async function main() {
   // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
   const args = process.argv.slice(2);
   const printUsage = () => {
-    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--help]");
+    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--no-cover-kicker] [--help]");
   };
 
   const parseArgs = () => {
@@ -1748,6 +1822,7 @@ async function main() {
     let cliSpacing = null;
     let cliPalette = null;
     let cliOutput = "./output";
+    let cliNoCoverKicker = false;
 
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
@@ -1765,6 +1840,10 @@ async function main() {
         i++;
         continue;
       }
+      if (arg === "--no-cover-kicker") {
+        cliNoCoverKicker = true;
+        continue;
+      }
       if (arg.startsWith("--")) {
         throw new Error(`Unknown option ${arg}`);
       }
@@ -1774,8 +1853,9 @@ async function main() {
       inputFile = arg;
     }
 
-    return { inputFile, cliSpacing, cliPalette, cliOutput };
+    return { inputFile, cliSpacing, cliPalette, cliOutput, cliNoCoverKicker };
   };
+
 
   let parsed;
   try {
@@ -1810,6 +1890,14 @@ async function main() {
   tryRegisterFonts();
 
   const content = JSON.parse(fs.readFileSync(inputFile, "utf-8"));
+  const cover = content.cover || {};
+  const autoCoverKicker = estimateCoverKicker(content);
+  content.cover = {
+    ...cover,
+    kicker: (parsed.cliNoCoverKicker || cover.showKicker === false)
+      ? null
+      : (cover.kicker && String(cover.kicker).trim() ? cover.kicker : autoCoverKicker),
+  };
 
   // Merge priority (low → high):
   //   TOKENS.theme defaults → palette colors → explicit color overrides in content.json
@@ -1917,4 +2005,4 @@ if (entryPath && pathToFileURL(entryPath).href === import.meta.url) {
   main();
 }
 
-export { fitCodeChunk, countWrappedCodeLines, measureCodeHeight };
+export { fitCodeChunk, countWrappedCodeLines, measureCodeHeight, estimateCoverKicker };
