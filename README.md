@@ -245,6 +245,8 @@ You can tune the look in `theme` with these knobs:
 
 ### Visual references
 
+All reference images below use zoomed crops so the details stay legible at README size.
+
 #### Background palettes
 
 ![Background palettes](docs/assets/bg-palettes.png)
@@ -252,8 +254,6 @@ You can tune the look in `theme` with these knobs:
 #### Background patterns
 
 ![Background patterns](docs/assets/bg-patterns.png)
-
-Zoomed corner crops so the texture reads at README size.
 
 #### Font families
 
