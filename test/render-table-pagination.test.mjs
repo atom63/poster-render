@@ -6,6 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createCanvas, loadImage } from 'canvas';
 import { countWrappedCodeLines, measureCodeHeight, estimateCoverKicker } from '../render.js';
+import { planSectionPages } from '../render-pagination.js';
+import { loadSectionImage } from '../render-image.js';
 
 const repo = process.cwd();
 const nodeBin = process.execPath;
@@ -252,6 +254,54 @@ test('auto-generates a reading-time kicker from deck text', () => {
   const kicker = estimateCoverKicker(content);
   assert.match(kicker, /^全文 \d+字 · \d+分钟阅读$/);
   assert.ok(!kicker.includes('AI Agent 产品怎么定价才不亏钱？'));
+});
+
+test('planSectionPages keeps image sections on a fresh page and respects height limits', () => {
+  const sections = [
+    { id: 'first' },
+    { id: 'image' },
+    { id: 'tail' },
+  ];
+
+  const pages = planSectionPages(sections, {
+    availableHeight: 80,
+    getSectionHeight: (section) => {
+      if (section.id === 'first') return 40;
+      if (section.id === 'image') return 35;
+      return 20;
+    },
+    getSectionGap: () => 10,
+    getSectionImage: (section) => (section.id === 'image' ? { drawH: 60 } : null),
+  });
+
+  assert.deepEqual(pages, [[0], [1, 2]]);
+
+  const noImagePages = planSectionPages([{ id: 'a' }, { id: 'b' }, { id: 'c' }], {
+    availableHeight: 90,
+    getSectionHeight: (section) => ({ a: 30, b: 30, c: 35 })[section.id],
+    getSectionGap: () => 10,
+  });
+
+  assert.deepEqual(noImagePages, [[0, 1], [2]]);
+});
+
+test('loadSectionImage crops and scales section images deterministically', async () => {
+  const tmp = makeTempDir();
+  const imagePath = path.join(tmp, 'source.png');
+  const canvas = createCanvas(100, 400);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ff0000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  fs.writeFileSync(imagePath, canvas.toBuffer('image/png'));
+
+  const loaded = await loadSectionImage(imagePath, 300, 150, 'free', 'top');
+  assert.ok(loaded);
+  assert.equal(loaded.srcX, 0);
+  assert.equal(loaded.srcY, 0);
+  assert.equal(loaded.srcW, 100);
+  assert.equal(loaded.srcH, 400);
+  assert.equal(loaded.drawH, 150);
+  assert.equal(loaded.drawW, 38);
 });
 
 test('measures long code tokens using wrapped line count', () => {
