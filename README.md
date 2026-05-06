@@ -245,23 +245,49 @@ You can tune the look in `theme` with these knobs:
 
 ### Visual references
 
-All reference images below use zoomed crops so the details stay legible at README size.
+Each section below uses one standalone preview per item so the differences stay readable in GitHub’s table layout.
 
 #### Background palettes
 
-![Background palettes](docs/assets/bg-palettes.png)
+| Palette | Preview |
+| --- | --- |
+| light | <img src="docs/assets/reference/palettes/light.png" width="260" alt="palette light" /> |
+| dark | <img src="docs/assets/reference/palettes/dark.png" width="260" alt="palette dark" /> |
+| warm | <img src="docs/assets/reference/palettes/warm.png" width="260" alt="palette warm" /> |
+| slate | <img src="docs/assets/reference/palettes/slate.png" width="260" alt="palette slate" /> |
+| paper | <img src="docs/assets/reference/palettes/paper.png" width="260" alt="palette paper" /> |
+| teal | <img src="docs/assets/reference/palettes/teal.png" width="260" alt="palette teal" /> |
+| midnight | <img src="docs/assets/reference/palettes/midnight.png" width="260" alt="palette midnight" /> |
+| clay | <img src="docs/assets/reference/palettes/clay.png" width="260" alt="palette clay" /> |
 
 #### Background patterns
 
-![Background patterns](docs/assets/bg-patterns.png)
+| Pattern | Preview |
+| --- | --- |
+| none | <img src="docs/assets/reference/patterns/none.png" width="260" alt="pattern none" /> |
+| dot-grid | <img src="docs/assets/reference/patterns/dot-grid.png" width="260" alt="pattern dot-grid" /> |
+| line-grid | <img src="docs/assets/reference/patterns/line-grid.png" width="260" alt="pattern line-grid" /> |
+| diagonal | <img src="docs/assets/reference/patterns/diagonal.png" width="260" alt="pattern diagonal" /> |
+| halftone | <img src="docs/assets/reference/patterns/halftone.png" width="260" alt="pattern halftone" /> |
+| dither | <img src="docs/assets/reference/patterns/dither.png" width="260" alt="pattern dither" /> |
+| ascii | <img src="docs/assets/reference/patterns/ascii.png" width="260" alt="pattern ascii" /> |
+| paper | <img src="docs/assets/reference/patterns/paper.png" width="260" alt="pattern paper" /> |
 
 #### Font families
 
-![Font families](docs/assets/font-families.png)
+| Font | Preview |
+| --- | --- |
+| sans | <img src="docs/assets/reference/fonts/sans.png" width="260" alt="font sans" /> |
+| serif | <img src="docs/assets/reference/fonts/serif.png" width="260" alt="font serif" /> |
+| mono | <img src="docs/assets/reference/fonts/mono.png" width="260" alt="font mono" /> |
 
 #### Spacing presets
 
-![Spacing presets](docs/assets/spacing-presets.png)
+| Spacing | Preview |
+| --- | --- |
+| sm | <img src="docs/assets/reference/spacing/sm.png" width="260" alt="spacing sm" /> |
+| md | <img src="docs/assets/reference/spacing/md.png" width="260" alt="spacing md" /> |
+| lg | <img src="docs/assets/reference/spacing/lg.png" width="260" alt="spacing lg" /> |
 
 ### Palettes
 
