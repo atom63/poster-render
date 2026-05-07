@@ -60,6 +60,13 @@ test('resolveThemeConfig keeps easteregg opt-in and normalizes the config', () =
   assert.equal(resolvedDefault.easterEgg, null);
   assert.equal(resolvedDefault.palette, 'light');
   assert.equal(resolvedDefault.spacing, 'md');
+  assert.equal(resolvedDefault.borderAlpha, 0.15);
+  assert.equal(resolvedDefault.gridAlpha, 0.12);
+  assert.equal(resolvedDefault.calloutAccentAlpha, 0.6);
+  assert.equal(resolvedDefault.headerTintAlpha, 0.05);
+  assert.equal(resolvedDefault.cardBorderAlpha, 0.1);
+  assert.equal(resolvedDefault.cardTintFallback, 0.18);
+  assert.equal(resolvedDefault.codeTheme, 'github-light');
 
   const resolvedEnabled = resolveThemeConfig({
     TOKENS: baseTokens,

@@ -140,7 +140,7 @@ function renderTableChunk(ctx, theme, layout, table, x, y, maxWidth, font, lineH
     if (isHeader) {
       ctx.save();
       ctx.fillStyle = theme.foreground;
-      ctx.globalAlpha = 0.05;
+      ctx.globalAlpha = theme.headerTintAlpha ?? 0.05;
       roundRect(ctx, x + pad.left, rowY, maxWidth - pad.left - pad.right, rowHeight, 10);
       ctx.fill();
       ctx.restore();
@@ -179,7 +179,7 @@ function renderTableChunk(ctx, theme, layout, table, x, y, maxWidth, font, lineH
   // Outer border and grid
   ctx.save();
   ctx.strokeStyle = theme.foreground;
-  ctx.globalAlpha = 0.15;
+  ctx.globalAlpha = theme.borderAlpha ?? 0.15;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.roundRect ? ctx.roundRect(x, y, maxWidth, tableHeight, 14) : roundRect(ctx, x, y, maxWidth, tableHeight, 14);
@@ -197,7 +197,7 @@ function renderTableChunk(ctx, theme, layout, table, x, y, maxWidth, font, lineH
   // Horizontal grid lines
   ctx.save();
   ctx.strokeStyle = theme.foreground;
-  ctx.globalAlpha = 0.12;
+  ctx.globalAlpha = theme.gridAlpha ?? 0.12;
   ctx.lineWidth = 1;
   let lineY = y + pad.top + rowHeights[0];
   ctx.beginPath();
@@ -218,7 +218,7 @@ function renderTableChunk(ctx, theme, layout, table, x, y, maxWidth, font, lineH
   // Vertical lines
   ctx.save();
   ctx.strokeStyle = theme.foreground;
-  ctx.globalAlpha = 0.12;
+  ctx.globalAlpha = theme.gridAlpha ?? 0.12;
   ctx.lineWidth = 1;
   let colX = x + pad.left;
   for (let col = 0; col <= widths.length; col++) {

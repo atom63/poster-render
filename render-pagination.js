@@ -23,7 +23,7 @@ export function planSectionPages(sections, {
     const imgData = getSectionImage(section, si);
     const secH = getSectionHeight(section, si);
     const gap = currentPage.length > 0 ? getSectionGap(section, si) : 0;
-    const forceNewPage = imgData && currentPage.length > 0;
+    const forceNewPage = Boolean(section?.pageBreakBefore) || (imgData && currentPage.length > 0);
 
     if (forceNewPage || (currentPage.length > 0 && usedHeight + gap + secH > availableHeight)) {
       pages.push(currentPage);
@@ -32,6 +32,12 @@ export function planSectionPages(sections, {
     } else {
       currentPage.push(si);
       usedHeight += gap + secH;
+    }
+
+    if (section?.pageBreakAfter && currentPage.length > 0) {
+      pages.push(currentPage);
+      currentPage = [];
+      usedHeight = 0;
     }
   }
 

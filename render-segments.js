@@ -136,7 +136,7 @@ async function renderCalloutSegment(ctx, theme, layout, seg, y, bodyFont, bodyLi
   // Left accent border
   ctx.save();
   ctx.fillStyle = theme.foreground;
-  ctx.globalAlpha = 0.6;
+  ctx.globalAlpha = theme.calloutAccentAlpha ?? 0.6;
   deps.roundRect(ctx, layout.contentX, y, pad.borderWidth, boxH, pad.borderWidth / 2);
   ctx.fill();
   ctx.restore();
@@ -190,6 +190,7 @@ async function renderCodeSegment(ctx, theme, layout, seg, y, codeStyle, deps) {
     theme.palette,
     codeStyle.codeFontSize,
     codeStyle.codeLineHeight,
+    theme,
   );
   if (codeRendered === null) {
     // Fallback: plain monochrome

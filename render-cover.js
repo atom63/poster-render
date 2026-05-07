@@ -20,7 +20,8 @@ export async function renderCover(content, theme, layout, totalSlides, template,
     const coverStyle = cover.coverStyle || template.coverStyle || "card";
 
     // Shared font setup
-    const cardTitleSize = Math.round(TOKENS.type.headline.size * 1.4); // ~73px
+    const mixedTitle = /[A-Za-z]/.test(cover.title) && /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/.test(cover.title);
+    const cardTitleSize = Math.round(TOKENS.type.headline.size * (mixedTitle ? 0.95 : 1.4)); // slightly tighter for bilingual/mixed titles
     const cardTitleLH   = Math.round(cardTitleSize * 1.33);
     const fm = TOKENS.fonts[theme.fontFamily] || TOKENS.fonts.sans;
     const titleFont = `${TOKENS.type.headline.weight} ${cardTitleSize}px "${fm.name}", ${fm.fallback}, "Apple Color Emoji"`;
@@ -80,18 +81,147 @@ export async function renderCover(content, theme, layout, totalSlides, template,
       return baseLineH;
     }
 
-    function drawTextBlock(text, font, color, x, startY, maxW, lineH) {
+    function measureWidth(text, font) {
+      ctx.save();
+      ctx.font = font;
+      const width = ctx.measureText(text).width;
+      ctx.restore();
+      return width;
+    }
+
+    function isLatinWordToken(token) {
+      return /^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/.test(token);
+    }
+
+    function tokenizeCoverText(text) {
+      const tokens = [];
+      const source = String(text ?? "");
+      const re = /([\s]+|[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*|\n|.)/gu;
+      for (const match of source.matchAll(re)) {
+        tokens.push(match[0]);
+      }
+      return tokens;
+    }
+
+    function wrapCoverLines(text, font, maxW) {
+      const lines = [];
+      const paragraphs = String(text ?? "").split("\n");
+
+      for (let p = 0; p < paragraphs.length; p++) {
+        const paragraph = paragraphs[p];
+        if (paragraph.length === 0) {
+          lines.push("");
+          continue;
+        }
+
+        const tokens = tokenizeCoverText(paragraph);
+        let line = "";
+
+        const pushLine = () => {
+          lines.push(line.replace(/[\s]+$/u, ""));
+          line = "";
+        };
+
+        const breakTokenByChars = (token) => {
+          const splitParts = /[-_]/.test(token)
+            ? token.split(/(?=[-_])|(?<=[-_])/).filter(Boolean)
+            : [token];
+
+          let chunk = "";
+          for (const part of splitParts) {
+            const candidate = chunk + part;
+            if (!chunk || measureWidth(candidate, font) <= maxW) {
+              chunk = candidate;
+              continue;
+            }
+
+            if (chunk) lines.push(chunk);
+            chunk = "";
+
+            if (measureWidth(part, font) <= maxW) {
+              chunk = part;
+              continue;
+            }
+
+            let inner = "";
+            for (const ch of Array.from(part)) {
+              const innerCandidate = inner + ch;
+              if (!inner || measureWidth(innerCandidate, font) <= maxW) {
+                inner = innerCandidate;
+              } else {
+                if (inner) lines.push(inner);
+                inner = ch;
+              }
+            }
+            chunk = inner;
+          }
+
+          if (chunk) line = chunk;
+        };
+
+        for (const token of tokens) {
+          if (!token) continue;
+          if (/^\s+$/.test(token)) {
+            if (!line) continue;
+            const candidate = line + token;
+            if (measureWidth(candidate, font) <= maxW) {
+              line = candidate;
+            } else {
+              pushLine();
+            }
+            continue;
+          }
+
+          const candidate = line + token;
+          if (measureWidth(candidate, font) <= maxW) {
+            line = candidate;
+            continue;
+          }
+
+          if (line) {
+            pushLine();
+          }
+
+          if (measureWidth(token, font) <= maxW) {
+            line = token;
+            continue;
+          }
+
+          if (isLatinWordToken(token)) {
+            breakTokenByChars(token);
+            continue;
+          }
+
+          breakTokenByChars(token);
+        }
+
+        if (line) pushLine();
+      }
+
+      return lines;
+    }
+
+    function drawTextBlock(text, font, color, x, startY, maxW, lineH, { safeWrap = false } = {}) {
       ctx.fillStyle = color;
       ctx.font = font;
-      let cursor = { segmentIndex: 0, graphemeIndex: 0 };
-      const prepared = prepareWithSegments(text, font, { whiteSpace: "pre-wrap" });
+      const lines = safeWrap
+        ? wrapCoverLines(text, font, maxW)
+        : (() => {
+            let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+            const prepared = prepareWithSegments(text, font, { whiteSpace: "pre-wrap" });
+            const out = [];
+            while (true) {
+              const line = layoutNextLine(prepared, cursor, maxW);
+              if (line === null) break;
+              out.push(line.text);
+              cursor = line.end;
+            }
+            return out;
+          })();
       let y = startY;
-      while (true) {
-        const line = layoutNextLine(prepared, cursor, maxW);
-        if (line === null) break;
-        ctx.fillText(line.text, x, y);
-        cursor = line.end;
-        y += coverLineAdvance(line.text, lineH);
+      for (const lineText of lines) {
+        ctx.fillText(lineText, x, y);
+        y += coverLineAdvance(lineText, lineH);
       }
       return y;
     }
@@ -116,8 +246,8 @@ export async function renderCover(content, theme, layout, totalSlides, template,
       const lumEnd = 0.299 * er + 0.587 * eg + 0.114 * eb;
       const endRgba = (a) => `rgba(${er},${eg},${eb},${a})`;
       // Text color: dark if extracted color is light, white if dark
-      const textColor    = lumEnd > 128 ? theme.foreground   : "#FFFFFF";
-      const subTextColor = lumEnd > 128 ? theme.mutedForeground : "rgba(255,255,255,0.75)";
+      const textColor    = lumEnd > 128 ? theme.foreground   : theme.onImageForeground;
+      const subTextColor = lumEnd > 128 ? theme.mutedForeground : theme.onImageMutedForeground;
 
       // Gradient starts at 40%, multi-stop for natural fade to extracted color
       const gradStart = Math.round(H * 0.40);
@@ -134,11 +264,11 @@ export async function renderCover(content, theme, layout, totalSlides, template,
       ctx.shadowColor = "rgba(0,0,0,0.35)";
       ctx.shadowBlur = 14;
       ctx.shadowOffsetY = 2;
-      y = drawTextBlock(cover.title, titleFont, textColor, layout.contentX, y, antiWidowWidth(cover.title, titleFont, layout.contentWidth), cardTitleLH);
+      y = drawTextBlock(cover.title, titleFont, textColor, layout.contentX, y, layout.contentWidth, cardTitleLH, { safeWrap: true });
       ctx.shadowBlur = 8;
       if (cover.subtitle) {
         y += layout.headlineToBody;
-        drawTextBlock(cover.subtitle, subFont, subTextColor, layout.contentX, y, antiWidowWidth(cover.subtitle, subFont, layout.contentWidth), TOKENS.type.body.lineHeight);
+        drawTextBlock(cover.subtitle, subFont, subTextColor, layout.contentX, y, layout.contentWidth, TOKENS.type.body.lineHeight, { safeWrap: true });
       }
       ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
@@ -195,10 +325,10 @@ export async function renderCover(content, theme, layout, totalSlides, template,
 
       ctx.textAlign = "center";
       let y = iy + imgH + Math.round(layout.padY * 0.65);
-      y = drawTextBlock(cover.title, titleFont, theme.foreground, W / 2, y, layout.contentWidth, cardTitleLH);
+      y = drawTextBlock(cover.title, titleFont, theme.foreground, W / 2, y, layout.contentWidth, cardTitleLH, { safeWrap: true });
       if (cover.subtitle) {
         y += layout.headlineToBody;
-        drawTextBlock(cover.subtitle, subFont, theme.mutedForeground, W / 2, y, layout.contentWidth, TOKENS.type.body.lineHeight);
+        drawTextBlock(cover.subtitle, subFont, theme.mutedForeground, W / 2, y, layout.contentWidth, TOKENS.type.body.lineHeight, { safeWrap: true });
       }
       ctx.textAlign = "left";
 
@@ -209,13 +339,13 @@ export async function renderCover(content, theme, layout, totalSlides, template,
 
       let y = imgH + Math.round(layout.padY * 0.75);
       if (cover.kicker) {
-        y = drawTextBlock(cover.kicker, subFont, theme.mutedForeground, layout.contentX, y, antiWidowWidth(cover.kicker, subFont, layout.contentWidth), TOKENS.type.subtitle.lineHeight);
+        y = drawTextBlock(cover.kicker, subFont, theme.mutedForeground, layout.contentX, y, layout.contentWidth, TOKENS.type.subtitle.lineHeight, { safeWrap: true });
         y += Math.round(layout.headlineToBody * 0.65);
       }
-      y = drawTextBlock(cover.title, titleFont, theme.foreground, layout.contentX, y, antiWidowWidth(cover.title, titleFont, layout.contentWidth), cardTitleLH);
+      y = drawTextBlock(cover.title, titleFont, theme.foreground, layout.contentX, y, layout.contentWidth, cardTitleLH, { safeWrap: true });
       if (cover.subtitle) {
         y += layout.headlineToBody;
-        drawTextBlock(cover.subtitle, subFont, theme.mutedForeground, layout.contentX, y, antiWidowWidth(cover.subtitle, subFont, layout.contentWidth), TOKENS.type.body.lineHeight);
+        drawTextBlock(cover.subtitle, subFont, theme.mutedForeground, layout.contentX, y, layout.contentWidth, TOKENS.type.body.lineHeight, { safeWrap: true });
       }
     }
   } else {

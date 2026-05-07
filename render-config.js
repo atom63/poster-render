@@ -13,6 +13,10 @@ export const COLOR_PALETTES = {
     accent:          "#09090B",
     cardBg:          "#F0F0EE",
     cardTint:        null,
+    onImageForeground: "#FFFFFF",
+    onImageMutedForeground: "rgba(255,255,255,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-light",
   },
   dark: {
     background:      "#09090B",
@@ -22,6 +26,10 @@ export const COLOR_PALETTES = {
     accent:          "#FAFAF8",
     cardBg:          "#2A2A2F",
     cardTint:        null,
+    onImageForeground: "#FAFAF8",
+    onImageMutedForeground: "rgba(250,250,248,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-dark-dimmed",
   },
   warm: {
     background:      "#FEFCE8",
@@ -32,6 +40,10 @@ export const COLOR_PALETTES = {
     accent:          "#1A1400",
     cardBg:          "#F5EDB8",
     cardTint:        null,
+    onImageForeground: "#FFFFFF",
+    onImageMutedForeground: "rgba(255,255,255,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-light",
   },
   slate: {
     background:      "#0F172A",
@@ -42,6 +54,10 @@ export const COLOR_PALETTES = {
     accent:          "#E2E8F0",
     cardBg:          "#1E2A40",
     cardTint:        null,
+    onImageForeground: "#E2E8F0",
+    onImageMutedForeground: "rgba(226,232,240,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-dark-dimmed",
   },
   paper: {
     background:      "#FDF6ED",
@@ -51,6 +67,10 @@ export const COLOR_PALETTES = {
     accent:          "#1A0E00",
     cardBg:          "#F0E5D0",
     cardTint:        null,
+    onImageForeground: "#FFFFFF",
+    onImageMutedForeground: "rgba(255,255,255,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-light",
   },
   teal: {
     background:      "#E8F5F3",
@@ -60,6 +80,10 @@ export const COLOR_PALETTES = {
     accent:          "#0D2B27",
     cardBg:          "#F0FAF8",
     cardTint:        null,
+    onImageForeground: "#FFFFFF",
+    onImageMutedForeground: "rgba(255,255,255,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-light",
   },
   midnight: {
     background:      "#1A1A1A",
@@ -70,6 +94,10 @@ export const COLOR_PALETTES = {
     accent:          "#F0EDE6",
     cardBg:          "#28223A",
     cardTint:        null,
+    onImageForeground: "#F0EDE6",
+    onImageMutedForeground: "rgba(240,237,230,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-dark-dimmed",
   },
   clay: {
     background:      "#F6EEE9",
@@ -80,6 +108,10 @@ export const COLOR_PALETTES = {
     accent:          "#5C2E26",
     cardBg:          "#EAD8D0",
     cardTint:        null,
+    onImageForeground: "#FFFFFF",
+    onImageMutedForeground: "rgba(255,255,255,0.75)",
+    borderAlpha: 0.15, gridAlpha: 0.12, calloutAccentAlpha: 0.6, headerTintAlpha: 0.05,
+    cardBorderAlpha: 0.1, cardTintFallback: 0.18, codeTheme: "github-light",
   },
 };
 
@@ -142,7 +174,7 @@ export function resolveThemeConfig({
 }) {
   const paletteName = cliPalette || contentTheme.palette || TOKENS.theme.palette;
   const palette = colorPalettes[paletteName] || colorPalettes.light;
-  const COLOR_KEYS = ["background", "foreground", "mutedForeground", "subtleForeground", "accent"];
+  const COLOR_KEYS = ["background", "foreground", "mutedForeground", "subtleForeground", "accent", "onImageForeground", "onImageMutedForeground"];
   const theme = {
     ...TOKENS.theme,
     ...palette,
@@ -168,6 +200,15 @@ export function resolveThemeConfig({
   theme.codePadBottom = resolveThemeNumber(theme.codePadBottom, SEGMENT_PAD.code.bottom);
   theme.codePadLeft = resolveThemeNumber(theme.codePadLeft, SEGMENT_PAD.code.left);
   theme.codePadRight = resolveThemeNumber(theme.codePadRight, SEGMENT_PAD.code.right);
+
+  // Markdown rendering theme tokens — backward-compat defaults for custom palettes.
+  theme.borderAlpha        = theme.borderAlpha        ?? 0.15;
+  theme.gridAlpha          = theme.gridAlpha          ?? 0.12;
+  theme.calloutAccentAlpha = theme.calloutAccentAlpha ?? 0.6;
+  theme.headerTintAlpha    = theme.headerTintAlpha    ?? 0.05;
+  theme.cardBorderAlpha    = theme.cardBorderAlpha    ?? 0.1;
+  theme.cardTintFallback   = theme.cardTintFallback   ?? 0.18;
+  if (theme.codeTheme === undefined) theme.codeTheme = null;
 
   return theme;
 }

@@ -41,13 +41,14 @@ import { renderCover } from "./render-cover.js";
 // --- Shiki syntax highlighter (lazy, cached by theme) ---
 const _shikiCache = {};
 const PALETTE_TO_SHIKI = {
-  dark: "github-dark",
-  midnight: "github-dark",
-  slate: "github-dark",
+  dark: "github-dark-dimmed",
+  midnight: "github-dark-dimmed",
+  slate: "github-dark-dimmed",
   teal: "github-light",
   light: "github-light",
   paper: "github-light",
   warm: "github-light",
+  clay: "github-light",
 };
 async function getShikiHighlighter(shikiTheme) {
   if (!_shikiCache[shikiTheme]) {
@@ -100,8 +101,8 @@ function countWrappedCodeLines(ctx, line, maxWidth) {
 }
 
 // Render Shiki-tokenized code onto canvas. Returns total height drawn.
-async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fontSize, lineHeight) {
-  const shikiTheme = PALETTE_TO_SHIKI[paletteName] || "github-dark";
+async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fontSize, lineHeight, theme = null) {
+  const shikiTheme = theme?.codeTheme || PALETTE_TO_SHIKI[paletteName] || "github-dark-dimmed";
   try {
     const highlighter = await getShikiHighlighter(shikiTheme);
     const loadedLangs = highlighter.getLoadedLanguages();
@@ -120,7 +121,7 @@ async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fo
       // wrapping rule stays consistent with countWrappedCodeLines().
       let curX = 0;
       for (const token of line) {
-        const color = token.color || "#888";
+        const color = token.color || theme?.foreground || "#888";
         const text = token.content;
         // Split by characters for wrapping
         for (let ci = 0; ci < text.length; ) {
@@ -627,13 +628,13 @@ function drawCardBg(ctx, theme, x, y, w, h, r = SEGMENT_RADIUS) {
     roundRect(ctx, x, y, w, h, r);
     ctx.fill();
     ctx.fillStyle = theme.foreground;
-    ctx.globalAlpha = theme.cardTint ?? 0.18;
+    ctx.globalAlpha = theme.cardTintFallback ?? theme.cardTint ?? 0.18;
     roundRect(ctx, x, y, w, h, r);
     ctx.fill();
   }
   // Subtle border
   ctx.strokeStyle = theme.foreground;
-  ctx.globalAlpha = 0.1;
+  ctx.globalAlpha = theme.cardBorderAlpha ?? 0.1;
   ctx.lineWidth = 1.5;
   roundRect(ctx, x, y, w, h, r);
   ctx.stroke();
@@ -907,7 +908,19 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
   let slideNum = startSlideNum;
   for (const pageIndices of pages) {
-    const { canvas, ctx } = createSlideCanvas(theme, patternContext);
+    const firstSection = sections[pageIndices[0]] || {};
+    const pageTheme = firstSection.theme
+      ? resolveThemeConfig({
+          TOKENS,
+          SEGMENT_PAD,
+          contentTheme: {
+            ...theme,
+            ...firstSection.theme,
+          },
+          contentEasterEgg: firstSection.easterEgg ?? firstSection.theme?.easterEgg ?? theme.easterEgg,
+        })
+      : theme;
+    const { canvas, ctx } = createSlideCanvas(pageTheme, patternContext);
     let y = layout.contentTop;
 
     for (let i = 0; i < pageIndices.length; i++) {
@@ -942,7 +955,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
       if (section.headline) {
         const headW = antiWidowWidth(section.headline, headlineFont, layout.contentWidth);
-        ctx.fillStyle = theme.foreground;
+        ctx.fillStyle = pageTheme.foreground;
         ctx.font = headlineFont;
         let hCursor = { segmentIndex: 0, graphemeIndex: 0 };
         const headPrepared = prepareWithSegments(section.headline, headlineFont, { whiteSpace: "pre-wrap" });
@@ -958,7 +971,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
       y = await renderSectionBody({
         ctx,
-        theme,
+        theme: pageTheme,
         layout,
         section,
         bodyFont,
@@ -969,7 +982,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
       });
     }
 
-    drawSlideCounter(ctx, theme, layout, slideNum, totalSlides);
+    drawSlideCounter(ctx, pageTheme, layout, slideNum, totalSlides);
     slides.push(canvas);
     slideNum++;
   }
@@ -1161,8 +1174,20 @@ async function main() {
   const hasCTA = Boolean(content.cta && content.cta.trim());
   const totalSlides = 1 + pages.length + (hasCTA ? 1 : 0);
 
+  const coverTheme = content.cover?.theme
+    ? resolveThemeConfig({
+        TOKENS,
+        SEGMENT_PAD,
+        contentTheme: {
+          ...theme,
+          ...content.cover.theme,
+        },
+        contentEasterEgg: content.cover.easterEgg ?? content.cover.theme?.easterEgg ?? theme.easterEgg,
+      })
+    : theme;
+
   const allSlides = [];
-  allSlides.push(await renderCover(content, theme, layout, totalSlides, resolvedTemplate, { ...COVER_RENDER_DEPS, patternContext }));
+  allSlides.push(await renderCover(content, coverTheme, layout, totalSlides, resolvedTemplate, { ...COVER_RENDER_DEPS, patternContext }));
   allSlides.push(...await renderContentSlides(sections, theme, layout, 2, totalSlides, patternContext));
   if (hasCTA) {
     allSlides.push(renderCTA(content, theme, layout, allSlides.length + 1, totalSlides, patternContext));
