@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildPreviewDocument } from '../preview/preview.mjs';
 import { exportPreviewPng } from '../preview/export-png.mjs';
 import { parseMarkdown } from '../markdown-to-content.js';
+
+const RENDER_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const SAMPLE = {
   cover: { title: 'Smoke test', subtitle: 'Templates' },
@@ -47,19 +50,22 @@ for (const tmpl of ['minimal', 'bold', 'technical']) {
   });
 }
 
-test('.md auto-detection: parseMarkdown produces valid content for buildPreviewDocument', async () => {
-  const tmp = makeTempDir();
-  const mdPath = path.join(tmp, 'deck.md');
-  const md = `# My Deck\n\nSubtitle here\n\n## Section One\n\nBody text.\n`;
-  fs.writeFileSync(mdPath, md);
-
-  const content = parseMarkdown(md, mdPath);
-  assert.equal(typeof content.cover, 'object');
-  assert.equal(content.cover.title, 'My Deck');
-  assert.ok(Array.isArray(content.sections));
-  assert.ok(content.sections.length >= 1);
-
-  const html = await buildPreviewDocument(content, { cssText: '', template: 'minimal' });
-  assert.match(html, /data-template="minimal"/);
-  assert.match(html, /My Deck/);
+test('.md auto-detection via render.js CLI', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const tmpMd = path.join(os.tmpdir(), `test-deck-${Date.now()}.md`);
+  const tmpOut = path.join(os.tmpdir(), `test-out-${Date.now()}`);
+  try {
+    fs.writeFileSync(tmpMd, '# My Deck\n\nHello world.\n');
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve(RENDER_DIR, '../render.js'), tmpMd, '--template', 'minimal', '--output', tmpOut],
+      { cwd: path.resolve(RENDER_DIR, '..'), encoding: 'utf8' }
+    );
+    assert.strictEqual(result.status, 0, `render.js exited ${result.status}: ${result.stderr}`);
+    const files = fs.readdirSync(tmpOut).filter(f => f.endsWith('.png'));
+    assert.ok(files.length > 0, 'Expected at least one PNG output');
+  } finally {
+    try { fs.unlinkSync(tmpMd); } catch {}
+    try { fs.rmSync(tmpOut, { recursive: true }); } catch {}
+  }
 });

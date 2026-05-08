@@ -1100,7 +1100,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
     });
     const isSparse = isSparsePage(pageUsedH, AVAILABLE_H, 0.75);
     const canFluid = isSparse && pageIsTextOnly;
-    console.log(`[sparse-layout-debug] slide=${slideNum} usedH=${pageUsedH} availH=${AVAILABLE_H} ratio=${(pageUsedH / AVAILABLE_H).toFixed(3)} canFluid=${canFluid}`);
+    console.error(`[sparse-layout-debug] slide=${slideNum} usedH=${pageUsedH} availH=${AVAILABLE_H} ratio=${(pageUsedH / AVAILABLE_H).toFixed(3)} canFluid=${canFluid}`);
     const sparseFillTarget = 0.88;
     const sparseScaleRaw = Math.min((AVAILABLE_H * sparseFillTarget) / pageUsedH, 1.75);
     const sparsePanelPadY = Math.round(Math.min(34, AVAILABLE_H * 0.02));
@@ -1585,7 +1585,7 @@ async function main() {
     fs.writeFileSync(path.join(outDir, `slide-${num}.png`), allSlides[i].toBuffer("image/png"));
   }
 
-  console.log(`Rendered ${allSlides.length} slides → ${outDir}`);
+  console.error(`Rendered ${allSlides.length} slides → ${outDir}`);
 }
 
 const entryPath = process.argv[1] ? fs.realpathSync(process.argv[1]) : null;
