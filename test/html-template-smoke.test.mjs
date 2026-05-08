@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildPreviewDocument } from '../preview/preview.mjs';
 import { exportPreviewPng } from '../preview/export-png.mjs';
+import { parseMarkdown } from '../markdown-to-content.js';
 
 const SAMPLE = {
   cover: { title: 'Smoke test', subtitle: 'Templates' },
@@ -45,3 +46,20 @@ for (const tmpl of ['minimal', 'bold', 'technical']) {
     }
   });
 }
+
+test('.md auto-detection: parseMarkdown produces valid content for buildPreviewDocument', async () => {
+  const tmp = makeTempDir();
+  const mdPath = path.join(tmp, 'deck.md');
+  const md = `# My Deck\n\nSubtitle here\n\n## Section One\n\nBody text.\n`;
+  fs.writeFileSync(mdPath, md);
+
+  const content = parseMarkdown(md, mdPath);
+  assert.equal(typeof content.cover, 'object');
+  assert.equal(content.cover.title, 'My Deck');
+  assert.ok(Array.isArray(content.sections));
+  assert.ok(content.sections.length >= 1);
+
+  const html = await buildPreviewDocument(content, { cssText: '', template: 'minimal' });
+  assert.match(html, /data-template="minimal"/);
+  assert.match(html, /My Deck/);
+});
