@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createHighlighter } from 'shiki';
+import { normalizeShikiLang, resolveShikiThemeName } from '../shiki-utils.js';
 
 export function escapeHtml(value) {
   return String(value)
@@ -92,12 +94,6 @@ export function renderCalloutBlock(text) {
   return `<section class="block block-callout">${renderTextParagraphs(text)}</section>`;
 }
 
-export function renderCodeBlock(block) {
-  const language = block?.lang ? String(block.lang).trim() : 'text';
-  const languageClass = language && language !== 'text' ? ` language-${escapeHtml(language)}` : '';
-  return `<section class="block block-code"><div class="block-label">${escapeHtml(language)}</div><pre><code class="${languageClass.trim()}">${escapeHtml(String(block?.content ?? ''))}</code></pre></section>`;
-}
-
 export function renderTableBlock(block) {
   const header = Array.isArray(block?.header) ? block.header : [];
   const rows = Array.isArray(block?.rows) ? block.rows : [];
@@ -119,13 +115,61 @@ export function renderTableBlock(block) {
   `.trim();
 }
 
+const _shikiCache = new Map();
+
+async function getShikiHighlighter(themeName) {
+  if (!_shikiCache.has(themeName)) {
+    _shikiCache.set(themeName, createHighlighter({
+      themes: [themeName],
+      langs: ['javascript', 'typescript', 'python', 'rust', 'go', 'java', 'c', 'cpp', 'html', 'css', 'json', 'jsonc', 'bash', 'yaml', 'markdown', 'sql', 'text'],
+    }).catch((error) => {
+      _shikiCache.delete(themeName);
+      throw error;
+    }));
+  }
+  return _shikiCache.get(themeName);
+}
+
+function renderPlainCode(code) {
+  return escapeHtml(String(code ?? ''));
+}
+
+function renderShikiTokenLines(tokens) {
+  return tokens.map((line) => line.map((token) => {
+    const content = escapeHtml(token.content);
+    const color = token.color ? ` style="color: ${escapeHtml(token.color)}"` : '';
+    return `<span${color}>${content}</span>`;
+  }).join('')).join('\n');
+}
+
+async function renderHighlightedCode(code, lang, paletteName, theme) {
+  const shikiTheme = resolveShikiThemeName(paletteName, theme?.codeTheme);
+  try {
+    const highlighter = await getShikiHighlighter(shikiTheme);
+    const safeLang = normalizeShikiLang(lang);
+    const loadedLangs = highlighter.getLoadedLanguages();
+    const renderedLang = loadedLangs.includes(safeLang) ? safeLang : 'text';
+    const { tokens } = highlighter.codeToTokens(String(code ?? ''), { lang: renderedLang, theme: shikiTheme });
+    return renderShikiTokenLines(tokens);
+  } catch {
+    return renderPlainCode(code);
+  }
+}
+
 export function renderImageBlock({ src, alt = '', sourceDir = process.cwd() }) {
   const resolved = resolvePreviewSrc(src, sourceDir);
   const caption = alt ? `<figcaption>${escapeHtml(alt)}</figcaption>` : '';
   return `<figure class="block block-image"><img src="${escapeHtml(resolved)}" alt="${escapeHtml(alt)}" />${caption}</figure>`;
 }
 
-export function renderBlock(block, options = {}) {
+export async function renderCodeBlock(block, options = {}) {
+  const language = block?.lang ? String(block.lang).trim() : 'text';
+  const languageClass = language && language !== 'text' ? ` language-${escapeHtml(language)}` : '';
+  const highlighted = await renderHighlightedCode(block?.content ?? '', language, options.theme?.palette, options.theme);
+  return `<section class="block block-code"><div class="block-label">${escapeHtml(language)}</div><pre><code class="${languageClass.trim()}">${highlighted}</code></pre></section>`;
+}
+
+export async function renderBlock(block, options = {}) {
   if (!block) return '';
   if (typeof block === 'string') return renderTextBlock(block);
   switch (block.type) {
@@ -136,7 +180,7 @@ export function renderBlock(block, options = {}) {
     case 'list':
       return `<section class="block block-list-wrap">${renderListFromLines(block.content ?? '')}</section>`;
     case 'code':
-      return renderCodeBlock(block);
+      return renderCodeBlock(block, options);
     case 'table':
       return renderTableBlock(block);
     case 'image':
@@ -146,7 +190,7 @@ export function renderBlock(block, options = {}) {
   }
 }
 
-export function renderBodyBlocks(body, options = {}) {
+export async function renderBodyBlocks(body, options = {}) {
   if (body == null) return '';
   if (typeof body === 'string') {
     return renderTextBlock(body);
@@ -154,5 +198,5 @@ export function renderBodyBlocks(body, options = {}) {
   if (!Array.isArray(body)) {
     return renderBlock(body, options);
   }
-  return body.map((block) => renderBlock(block, options)).join('');
+  return (await Promise.all(body.map((block) => renderBlock(block, options)))).join('');
 }

@@ -6,33 +6,33 @@ export const SPACING_PRESETS = {
 
 export const TYPE_PRESETS = {
   sm: {
-    title:    { size: 99,  weight: "800",    lineHeight: 118 },
-    subtitle: { size: 31,  weight: "normal", lineHeight: 48 },
-    headline: { size: 48,  weight: "600",    lineHeight: 64 },
-    body:     { size: 31,  weight: "normal", lineHeight: 47 },
-    small:    { size: 20,  weight: "normal", lineHeight: 31 },
-    code:     { size: 28,  weight: "normal", lineHeight: 44 },
-  },
-  md: {
     title:    { size: 108, weight: "800",    lineHeight: 128 },
     subtitle: { size: 34,  weight: "normal", lineHeight: 52 },
     headline: { size: 52,  weight: "600",    lineHeight: 70 },
     body:     { size: 34,  weight: "normal", lineHeight: 51 },
     small:    { size: 22,  weight: "normal", lineHeight: 34 },
-    code:     { size: 30,  weight: "normal", lineHeight: 48 },
+    code:     { size: 28,  weight: "normal", lineHeight: 44 },
   },
-  lg: {
+  md: {
     title:    { size: 121, weight: "800",    lineHeight: 144 },
     subtitle: { size: 38,  weight: "normal", lineHeight: 58 },
     headline: { size: 58,  weight: "600",    lineHeight: 78 },
     body:     { size: 38,  weight: "normal", lineHeight: 57 },
     small:    { size: 25,  weight: "normal", lineHeight: 38 },
+    code:     { size: 30,  weight: "normal", lineHeight: 48 },
+  },
+  lg: {
+    title:    { size: 135, weight: "800",    lineHeight: 160 },
+    subtitle: { size: 42,  weight: "normal", lineHeight: 64 },
+    headline: { size: 65,  weight: "600",    lineHeight: 86 },
+    body:     { size: 42,  weight: "normal", lineHeight: 64 },
+    small:    { size: 28,  weight: "normal", lineHeight: 42 },
     code:     { size: 34,  weight: "normal", lineHeight: 54 },
   },
 };
 
 export const TYPE_RAMP_PRESETS = {
-  "golden-ratio": { ratio: 1.618, base: 34 },
+  "golden-ratio": { ratio: 1.618, base: 38 },
 };
 
 export const TYPOGRAPHY_PRESETS = TYPE_PRESETS;

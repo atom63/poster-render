@@ -39,6 +39,7 @@
     "render-image.js",
     "render-pattern.js",
     "markdown-to-content.js",
+    "shiki-utils.js",
     "preview/",
     "README.md",
     "LICENSE",

@@ -9,7 +9,7 @@ function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'poster-render-preview-rendering-'));
 }
 
-test('preview renderer maps core markdown blocks into semantic HTML', () => {
+test('preview renderer maps core markdown blocks into semantic HTML', async () => {
   const tmp = makeTempDir();
   const asset = path.join(tmp, 'diagram.png');
   fs.writeFileSync(asset, 'png');
@@ -34,7 +34,7 @@ test('preview renderer maps core markdown blocks into semantic HTML', () => {
     ],
   };
 
-  const html = buildPreviewDocument(content, { sourcePath: path.join(tmp, 'content.json'), cssText: '' });
+  const html = await buildPreviewDocument(content, { sourcePath: path.join(tmp, 'content.json'), cssText: '' });
 
   assert.match(html, /<header class="cover">/);
   assert.match(html, /<header class="section-header">/);
@@ -42,7 +42,7 @@ test('preview renderer maps core markdown blocks into semantic HTML', () => {
   assert.match(html, /<ul class="block-list block-list--unordered">/);
   assert.match(html, /<ul class="block-list block-list--task">/);
   assert.match(html, /<input type="checkbox" disabled checked/);
-  assert.match(html, /<pre><code class="language-js">const value = 1;\n\s*console\.log\(value\);<\/code><\/pre>/);
+  assert.match(html, /<pre><code class="language-js">[\s\S]*<span style="color:/);
   assert.match(html, /<thead><tr><th>Name<\/th><th>Value<\/th><\/tr><\/thead>/);
   assert.match(html, /<tbody><tr><td style="text-align:left;">Alpha<\/td><td style="text-align:right;">1<\/td><\/tr>/);
   assert.match(html, /alt="diagram alt text"/);

@@ -12,11 +12,11 @@ const PREVIEW_TOKENS = {
   canvas: { width: 1080, height: 1350 },
   theme: { palette: 'light', fontFamily: 'sans', spacing: 'md' },
   type: {
-    title: { size: 108, weight: '800', lineHeight: 128 },
-    subtitle: { size: 34, weight: 'normal', lineHeight: 52 },
-    headline: { size: 52, weight: '600', lineHeight: 70 },
-    body: { size: 34, weight: 'normal', lineHeight: 51 },
-    small: { size: 22, weight: 'normal', lineHeight: 34 },
+    title: { size: 121, weight: '800', lineHeight: 144 },
+    subtitle: { size: 38, weight: 'normal', lineHeight: 58 },
+    headline: { size: 58, weight: '600', lineHeight: 78 },
+    body: { size: 38, weight: 'normal', lineHeight: 57 },
+    small: { size: 25, weight: 'normal', lineHeight: 38 },
     code: { size: 30, weight: 'normal', lineHeight: 48 },
   },
 };
@@ -96,7 +96,7 @@ function themeToCssVars(theme, tokens) {
   return Object.entries(vars).map(([key, value]) => `${key}: ${value};`).join(' ');
 }
 
-export function buildPreviewDocument(content, { sourcePath = null, cssText = '', tokens = PREVIEW_TOKENS } = {}) {
+export async function buildPreviewDocument(content, { sourcePath = null, cssText = '', tokens = PREVIEW_TOKENS } = {}) {
   const resolvedTheme = resolveThemeConfig({
     TOKENS: tokens,
     SEGMENT_PAD: PREVIEW_SEGMENT_PAD,
@@ -104,7 +104,7 @@ export function buildPreviewDocument(content, { sourcePath = null, cssText = '',
     colorPalettes: COLOR_PALETTES,
   });
   const sourceDir = content?.sourceDir ?? (sourcePath ? path.dirname(sourcePath) : process.cwd());
-  const deck = renderPreviewDeck({ ...content, theme: resolvedTheme }, { sourceDir });
+  const deck = await renderPreviewDeck({ ...content, theme: resolvedTheme }, { sourceDir });
   const style = `${cssText}\n:root { ${themeToCssVars(resolvedTheme, tokens)} }`;
   const title = content?.cover?.title ? String(content.cover.title) : 'poster-render preview';
   return `<!doctype html>
@@ -134,7 +134,7 @@ async function main() {
   const { content, inputPath: resolvedInput } = loadPreviewContent(inputPath);
   const cssPath = path.resolve(MODULE_DIR, 'preview.css');
   const cssText = fs.readFileSync(cssPath, 'utf8');
-  const html = buildPreviewDocument(content, { sourcePath: resolvedInput, cssText });
+  const html = await buildPreviewDocument(content, { sourcePath: resolvedInput, cssText });
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, html);
   console.error(`[preview] wrote ${outputPath}`);

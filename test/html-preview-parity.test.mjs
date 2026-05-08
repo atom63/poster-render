@@ -24,7 +24,7 @@ function extractPreviewMeta(html) {
   return slides;
 }
 
-test('canvas export and HTML preview stay aligned on slide order and deck structure', () => {
+test('canvas export and HTML preview stay aligned on slide order and deck structure', async () => {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const tmp = makeTempDir();
   const sourcePath = path.join(tmp, 'content.json');
@@ -59,8 +59,8 @@ test('canvas export and HTML preview stay aligned on slide order and deck struct
   });
 
   const canvasSlides = fs.readdirSync(canvasOutput).filter((name) => name.endsWith('.png')).sort();
-  const previewSlides = buildPreviewSlides(previewContent, { sourceDir: tmp });
-  const previewHtml = buildPreviewDocument(previewContent, { sourcePath, cssText: '' });
+  const previewSlides = await buildPreviewSlides(previewContent, { sourceDir: tmp });
+  const previewHtml = await buildPreviewDocument(previewContent, { sourcePath, cssText: '' });
   const meta = extractPreviewMeta(previewHtml);
 
   assert.ok(Math.abs(canvasSlides.length - previewSlides.length) <= 2, `canvas/preview slide counts diverged too much: canvas=${canvasSlides.length}, preview=${previewSlides.length}`);

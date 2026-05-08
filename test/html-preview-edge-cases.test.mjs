@@ -27,7 +27,7 @@ const DENSE_CONTENT = {
 };
 
 test('dense preview slides do not clip long copy', async () => {
-  const html = buildPreviewDocument(DENSE_CONTENT, { cssText: CSS_TEXT });
+  const html = await buildPreviewDocument(DENSE_CONTENT, { cssText: CSS_TEXT });
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1200, height: 2200 } });

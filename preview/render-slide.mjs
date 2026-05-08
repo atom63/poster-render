@@ -205,12 +205,12 @@ function renderCoverSlide(content, sourceDir, index, total) {
   `.trim();
 }
 
-function renderSectionSlide(section, sourceDir, index, total) {
+async function renderSectionSlide(section, sourceDir, index, total, theme) {
   const title = sectionHeading(section, index);
   const isContinuation = Boolean(section.continued);
   const kicker = isContinuation ? `Section ${String(index - 1).padStart(2, '0')} · continued` : `Section ${String(index - 1).padStart(2, '0')}`;
   const image = section.image ? renderImageBlock({ src: section.image, alt: section.imageAlt ?? title, sourceDir }) : '';
-  const body = renderBodyBlocks(section.body, { sourceDir });
+  const body = await renderBodyBlocks(section.body, { sourceDir, theme });
   return `
     <article ${slideAttrs('section', title, index, isDenseSection(section))}>
       <header class="section-header">
@@ -245,23 +245,22 @@ function renderCtaSlide(content, sourceDir, index, total) {
   `.trim();
 }
 
-export function buildPreviewSlides(content, { sourceDir = process.cwd() } = {}) {
+export async function buildPreviewSlides(content, { sourceDir = process.cwd(), theme = content?.theme ?? null } = {}) {
   const slides = [renderCoverSlide(content, sourceDir, 1, 1)];
   const sections = Array.isArray(content?.sections) ? content.sections : [];
   const hasCta = Boolean(String(content?.cta ?? '').trim());
-  const sectionSlides = sections.flatMap((section) => splitSectionForPreview(section));
-  const total = 1 + sectionSlides.length + (hasCta ? 1 : 0);
+  const expandedSections = sections.flatMap((section) => splitSectionForPreview(section));
+  const total = 1 + expandedSections.length + (hasCta ? 1 : 0);
   slides[0] = renderCoverSlide(content, sourceDir, 1, total);
-  sectionSlides.forEach((section, offset) => {
-    slides.push(renderSectionSlide(section, sourceDir, offset + 2, total));
-  });
+  const renderedSections = await Promise.all(expandedSections.map((section, offset) => renderSectionSlide(section, sourceDir, offset + 2, total, theme)));
+  slides.push(...renderedSections);
   if (hasCta) {
     slides.push(renderCtaSlide(content, sourceDir, total, total));
   }
   return slides;
 }
 
-export function renderPreviewDeck(content, options = {}) {
+export async function renderPreviewDeck(content, options = {}) {
   const sourceDir = options.sourceDir ?? process.cwd();
-  return `<main class="deck" aria-label="poster-render HTML preview">${buildPreviewSlides(content, { sourceDir }).join('')}</main>`;
+  return `<main class="deck" aria-label="poster-render HTML preview">${(await buildPreviewSlides(content, { sourceDir, theme: options.theme ?? content?.theme ?? null })).join('')}</main>`;
 }

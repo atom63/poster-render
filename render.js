@@ -18,6 +18,7 @@ import {
   TYPOGRAPHY_PRESETS,
   TYPOGRAPHY_SCALES,
 } from "./render-config.js";
+import { normalizeShikiLang, resolveShikiThemeName } from "./shiki-utils.js";
 import {
   SEGMENT_PAD,
   SEGMENT_GAP,
@@ -43,16 +44,6 @@ import { renderCover } from "./render-cover.js";
 
 // --- Shiki syntax highlighter (lazy, cached by theme) ---
 const _shikiCache = {};
-const PALETTE_TO_SHIKI = {
-  dark: "github-dark-dimmed",
-  midnight: "github-dark-dimmed",
-  slate: "github-dark-dimmed",
-  teal: "github-light",
-  light: "github-light",
-  paper: "github-light",
-  warm: "github-light",
-  clay: "github-light",
-};
 async function getShikiHighlighter(shikiTheme) {
   if (!_shikiCache[shikiTheme]) {
     _shikiCache[shikiTheme] = await createHighlighter({
@@ -105,11 +96,11 @@ function countWrappedCodeLines(ctx, line, maxWidth) {
 
 // Render Shiki-tokenized code onto canvas. Returns total height drawn.
 async function renderCodeTokens(ctx, code, lang, x, y, maxWidth, paletteName, fontSize, lineHeight, theme = null) {
-  const shikiTheme = theme?.codeTheme || PALETTE_TO_SHIKI[paletteName] || "github-dark-dimmed";
+  const shikiTheme = resolveShikiThemeName(paletteName, theme?.codeTheme);
   try {
     const highlighter = await getShikiHighlighter(shikiTheme);
     const loadedLangs = highlighter.getLoadedLanguages();
-    const safeLang = loadedLangs.includes(lang) ? lang : "text";
+    const safeLang = loadedLangs.includes(normalizeShikiLang(lang)) ? normalizeShikiLang(lang) : "text";
     const { tokens } = highlighter.codeToTokens(code, { lang: safeLang, theme: shikiTheme });
 
     const fm = TOKENS.fonts.mono;
@@ -245,11 +236,11 @@ const TOKENS = {
     height: 1350,
   },
   type: {
-    title:    { size: 108, weight: "800",   lineHeight: 128 },
-    subtitle: { size: 34,  weight: "normal", lineHeight: 52 },
-    headline: { size: 52,  weight: "600",    lineHeight: 70 },
-    body:     { size: 34,  weight: "normal", lineHeight: 51 },
-    small:    { size: 22,  weight: "normal", lineHeight: 34 },
+    title:    { size: 121, weight: "800",    lineHeight: 144 },
+    subtitle: { size: 38,  weight: "normal", lineHeight: 58 },
+    headline: { size: 58,  weight: "600",    lineHeight: 78 },
+    body:     { size: 38,  weight: "normal", lineHeight: 57 },
+    small:    { size: 25,  weight: "normal", lineHeight: 38 },
     code:     { size: 30,  weight: "normal", lineHeight: 48 },
   },
   paragraphGap: 0.25,

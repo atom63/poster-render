@@ -18,11 +18,11 @@ const SEGMENT_PAD = { code: { top: 10, bottom: 4, left: 14, right: 14 } };
 const BASE_TOKENS = {
   canvas: { width: 1080, height: 1350 },
   type: {
-    title:    { size: 108, weight: '800',    lineHeight: 128 },
-    subtitle: { size: 34,  weight: 'normal', lineHeight: 52  },
-    headline: { size: 52,  weight: '600',    lineHeight: 70  },
-    body:     { size: 34,  weight: 'normal', lineHeight: 51  },
-    small:    { size: 22,  weight: 'normal', lineHeight: 34  },
+    title:    { size: 121, weight: '800',    lineHeight: 144 },
+    subtitle: { size: 38,  weight: 'normal', lineHeight: 58  },
+    headline: { size: 58,  weight: '600',    lineHeight: 78  },
+    body:     { size: 38,  weight: 'normal', lineHeight: 57  },
+    small:    { size: 25,  weight: 'normal', lineHeight: 38  },
     code:     { size: 30,  weight: 'normal', lineHeight: 48  },
   },
   theme: { palette: 'light', spacing: 'md' },
@@ -52,17 +52,17 @@ test('TYPOGRAPHY_PRESETS has sm, md, lg entries with all roles as absolute px', 
 
 test('TYPOGRAPHY_PRESETS md matches current TOKENS defaults exactly', () => {
   const md = TYPOGRAPHY_PRESETS.md;
-  assert.equal(md.title.size,    108);
+  assert.equal(md.title.size,    121);
   assert.equal(md.title.weight,  '800');
-  assert.equal(md.title.lineHeight, 128);
-  assert.equal(md.subtitle.size, 34);
-  assert.equal(md.headline.size, 52);
+  assert.equal(md.title.lineHeight, 144);
+  assert.equal(md.subtitle.size, 38);
+  assert.equal(md.headline.size, 58);
   assert.equal(md.headline.weight, '600');
-  assert.equal(md.headline.lineHeight, 70);
-  assert.equal(md.body.size,     34);
-  assert.equal(md.body.lineHeight, 51);
-  assert.equal(md.small.size,    22);
-  assert.equal(md.small.lineHeight, 34);
+  assert.equal(md.headline.lineHeight, 78);
+  assert.equal(md.body.size,     38);
+  assert.equal(md.body.lineHeight, 57);
+  assert.equal(md.small.size,    25);
+  assert.equal(md.small.lineHeight, 38);
   assert.equal(md.code.size,     30);
   assert.equal(md.code.lineHeight, 48);
 });
@@ -75,7 +75,7 @@ test('TYPOGRAPHY_SCALES only exposes golden-ratio and uses ratio/base', () => {
   assert.ok(scale, 'TYPOGRAPHY_SCALES[\'golden-ratio\'] must exist');
   assert.equal(Object.keys(TYPOGRAPHY_SCALES).length, 1);
   assert.equal(scale.ratio, 1.618);
-  assert.equal(scale.base, 34);
+  assert.equal(scale.base, 38);
 });
 
 test('resolveTypography returns null when no typography name given', () => {

@@ -51,7 +51,7 @@ async function waitForAssets(page) {
 
 export async function exportPreviewPng(content, { sourcePath = null, outputDir = 'preview-export', cssText = '' } = {}) {
   const resolvedCssText = cssText || fs.readFileSync(path.resolve(MODULE_DIR, 'preview.css'), 'utf8');
-  const html = buildPreviewDocument(content, { sourcePath, cssText: resolvedCssText });
+  const html = await buildPreviewDocument(content, { sourcePath, cssText: resolvedCssText });
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'poster-render-preview-export-'));
   const htmlPath = path.join(tempDir, 'preview.html');
   fs.writeFileSync(htmlPath, html);

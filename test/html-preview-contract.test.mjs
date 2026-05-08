@@ -9,7 +9,7 @@ function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'poster-render-preview-contract-'));
 }
 
-test('preview document preserves slide ordering and deck metadata from content.json', () => {
+test('preview document preserves slide ordering and deck metadata from content.json', async () => {
   const tmp = makeTempDir();
   const sourcePath = path.join(tmp, 'content.json');
   const content = {
@@ -25,7 +25,7 @@ test('preview document preserves slide ordering and deck metadata from content.j
   const { content: previewContent, inputPath: loadedPath } = loadPreviewContent(sourcePath);
   assert.equal(loadedPath, sourcePath);
 
-  const html = buildPreviewDocument(previewContent, { sourcePath, cssText: '' });
+  const html = await buildPreviewDocument(previewContent, { sourcePath, cssText: '' });
 
   const slides = [...html.matchAll(/<article class="slide slide-([^\"]+)"[^>]*data-slide-title="([^"]*)"/g)].map((match) => ({
     kind: match[1],
