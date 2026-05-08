@@ -4,6 +4,40 @@ export const SPACING_PRESETS = {
   lg: { padX: 140, padY: 140, footerH: 72, sectionGap: 72, headlineToBody: 44 },
 };
 
+export const TYPE_PRESETS = {
+  sm: {
+    title:    { size: 99,  weight: "800",    lineHeight: 118 },
+    subtitle: { size: 31,  weight: "normal", lineHeight: 48 },
+    headline: { size: 48,  weight: "600",    lineHeight: 64 },
+    body:     { size: 31,  weight: "normal", lineHeight: 47 },
+    small:    { size: 20,  weight: "normal", lineHeight: 31 },
+    code:     { size: 28,  weight: "normal", lineHeight: 44 },
+  },
+  md: {
+    title:    { size: 108, weight: "800",    lineHeight: 128 },
+    subtitle: { size: 34,  weight: "normal", lineHeight: 52 },
+    headline: { size: 52,  weight: "600",    lineHeight: 70 },
+    body:     { size: 34,  weight: "normal", lineHeight: 51 },
+    small:    { size: 22,  weight: "normal", lineHeight: 34 },
+    code:     { size: 30,  weight: "normal", lineHeight: 48 },
+  },
+  lg: {
+    title:    { size: 121, weight: "800",    lineHeight: 144 },
+    subtitle: { size: 38,  weight: "normal", lineHeight: 58 },
+    headline: { size: 58,  weight: "600",    lineHeight: 78 },
+    body:     { size: 38,  weight: "normal", lineHeight: 57 },
+    small:    { size: 25,  weight: "normal", lineHeight: 38 },
+    code:     { size: 34,  weight: "normal", lineHeight: 54 },
+  },
+};
+
+export const TYPE_RAMP_PRESETS = {
+  "golden-ratio": { ratio: 1.618, base: 34 },
+};
+
+export const TYPOGRAPHY_PRESETS = TYPE_PRESETS;
+export const TYPOGRAPHY_SCALES = TYPE_RAMP_PRESETS;
+
 export const COLOR_PALETTES = {
   light: {
     background:      "#FAFAF8",
@@ -161,6 +195,41 @@ export function resolveLayout(theme, template = TEMPLATE_REGISTRY.default, token
   };
 }
 
+export function normalizeTypePresetName(value) {
+  if (typeof value !== "string") return null;
+  const name = value.trim();
+  return name || null;
+}
+
+function cloneTypeMap(typeMap) {
+  const cloned = {};
+  for (const [key, value] of Object.entries(typeMap || {})) {
+    cloned[key] = { ...value };
+  }
+  return cloned;
+}
+
+function scaleTypeFromRamp(baseType, ramp) {
+  const { ratio, base } = ramp;
+  const line = (size) => Math.max(size + 8, Math.round(size * 1.35));
+  return {
+    title:    { ...baseType.title,    size: Math.round(base * ratio * ratio * ratio), lineHeight: line(Math.round(base * ratio * ratio * ratio)) },
+    subtitle: { ...baseType.subtitle, size: Math.round(base * ratio),                 lineHeight: line(Math.round(base * ratio)) },
+    headline: { ...baseType.headline, size: Math.round(base * ratio * ratio),        lineHeight: line(Math.round(base * ratio * ratio)) },
+    body:     { ...baseType.body,     size: base,                                    lineHeight: line(base) },
+    small:    { ...baseType.small,    size: Math.round(base / ratio),                lineHeight: line(Math.round(base / ratio)) },
+    code:     { ...baseType.code,     size: Math.round(base * ratio),                lineHeight: line(Math.round(base * ratio)) },
+  };
+}
+
+export function resolveTypography(name, baseType, presets = TYPOGRAPHY_PRESETS, scales = TYPOGRAPHY_SCALES) {
+  const typographyName = normalizeTypePresetName(name);
+  if (!typographyName || !baseType) return null;
+  if (presets[typographyName]) return cloneTypeMap(presets[typographyName]);
+  if (scales[typographyName]) return scaleTypeFromRamp(baseType, scales[typographyName]);
+  return null;
+}
+
 export function resolveThemeConfig({
   TOKENS,
   SEGMENT_PAD,
@@ -168,6 +237,8 @@ export function resolveThemeConfig({
   contentEasterEgg = null,
   cliPalette,
   cliSpacing,
+  cliTypography,
+  cliType,
   cliEasterEgg = false,
   cliSeed = null,
   colorPalettes = COLOR_PALETTES,
@@ -187,6 +258,14 @@ export function resolveThemeConfig({
   }
 
   if (cliSpacing && SPACING_PRESETS[cliSpacing]) theme.spacing = cliSpacing;
+  const typographyName = normalizeTypePresetName(cliTypography) || normalizeTypePresetName(cliType) || normalizeTypePresetName(contentTheme.typography) || normalizeTypePresetName(contentTheme.typePreset) || normalizeTypePresetName(contentTheme.type);
+  const resolvedType = resolveTypography(typographyName, TOKENS.type);
+  theme.typography = resolvedType ? typographyName : null;
+  theme.resolvedType = resolvedType;
+  if (cliType) {
+    if (TYPE_PRESETS[cliType]) theme.typePreset = cliType;
+    else if (TYPE_RAMP_PRESETS[cliType]) theme.typeRamp = cliType;
+  }
 
   const normalizedEasterEgg = normalizeEastereggConfig(contentEasterEgg ?? contentTheme.easterEgg, {
     enabled: cliEasterEgg ? true : null,

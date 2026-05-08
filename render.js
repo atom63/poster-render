@@ -14,6 +14,9 @@ import {
   resolveTemplateName,
   resolveThemeConfig,
   resolveThemeNumber,
+  resolveTypography,
+  TYPOGRAPHY_PRESETS,
+  TYPOGRAPHY_SCALES,
 } from "./render-config.js";
 import {
   SEGMENT_PAD,
@@ -34,7 +37,7 @@ import {
   loadEmojiImage,
 } from "./render-emoji.js";
 import { loadSectionImage } from "./render-image.js";
-import { planSectionPages } from "./render-pagination.js";
+import { planSectionPages, isSparsePage } from "./render-pagination.js";
 import { composeBackgroundPatternPlan, deriveDeckIdentity, renderBackgroundPattern } from "./render-pattern.js";
 import { renderCover } from "./render-cover.js";
 
@@ -274,6 +277,26 @@ function fontString(typeKey, fontFamily) {
 function monoFontString(size) {
   const fm = TOKENS.fonts.mono;
   return `${size}px "${fm.name}", ${fm.fallback}, "Noto Sans Mono CJK SC", "Apple Color Emoji"`;
+}
+
+function scaleFontString(fontStr, scale) {
+  return fontStr.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Math.round(Number(n) * scale)}px`);
+}
+
+function fitScaleToHeight(measureHeight, maxHeight, targetScale, minScale = 1) {
+  let lo = minScale;
+  let hi = targetScale;
+
+  if (measureHeight(hi) <= maxHeight) return hi;
+  if (measureHeight(lo) > maxHeight) return lo;
+
+  for (let i = 0; i < 8; i++) {
+    const mid = (lo + hi) / 2;
+    if (measureHeight(mid) <= maxHeight) lo = mid;
+    else hi = mid;
+  }
+
+  return lo;
 }
 
 // --- Font registration ---
@@ -727,6 +750,160 @@ function finalizeChunkSection(section) {
   return section;
 }
 
+function collectTextLength(value) {
+  if (value == null) return 0;
+  if (typeof value === 'string') return value.length;
+  if (Array.isArray(value)) return value.reduce((sum, item) => sum + collectTextLength(item), 0);
+  if (typeof value === 'object') {
+    let total = 0;
+    for (const key of ['content', 'headline', 'title', 'subtitle', 'alt', 'kicker', 'cta']) {
+      if (typeof value[key] === 'string') total += value[key].length;
+    }
+    if (Array.isArray(value.body)) total += collectTextLength(value.body);
+    if (Array.isArray(value.rows)) total += collectTextLength(value.rows);
+    if (Array.isArray(value.header)) total += collectTextLength(value.header);
+    return total;
+  }
+  return 0;
+}
+
+function isDenseSection(section = {}) {
+  const bodyBlocks = Array.isArray(section.body) ? section.body.length : section.body ? 1 : 0;
+  const textLength = collectTextLength(section) + collectTextLength(section.body);
+  return bodyBlocks >= 3 || textLength >= 1400;
+}
+
+function splitLongText(text, maxChars = 900) {
+  const normalized = String(text ?? '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) return [];
+
+  const chunks = [];
+  const paragraphs = normalized.split(/\n\s*\n/g);
+
+  const splitSegment = (segment) => {
+    const words = segment.split(/(\s+)/);
+    let current = '';
+    for (const token of words) {
+      if (!token) continue;
+      if (!current && token.length > maxChars) {
+        for (let i = 0; i < token.length; i += maxChars) {
+          chunks.push(token.slice(i, i + maxChars).trim());
+        }
+        continue;
+      }
+      if ((current + token).length > maxChars && current.trim()) {
+        chunks.push(current.trim());
+        current = token.trimStart();
+      } else {
+        current += token;
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+  };
+
+  let current = '';
+  for (const paragraph of paragraphs) {
+    if (!paragraph.trim()) continue;
+    if (paragraph.length > maxChars) {
+      if (current.trim()) {
+        chunks.push(current.trim());
+        current = '';
+      }
+      splitSegment(paragraph);
+      continue;
+    }
+    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+    if (candidate.length > maxChars && current.trim()) {
+      chunks.push(current.trim());
+      current = paragraph;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+function splitLinesBlock(content, maxLines = 6, maxChars = 900) {
+  const lines = String(content ?? '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter(Boolean);
+
+  if (lines.length === 0) return [];
+
+  const chunks = [];
+  let current = [];
+  let currentChars = 0;
+  for (const line of lines) {
+    const nextChars = currentChars + line.length;
+    if (current.length > 0 && (current.length >= maxLines || nextChars > maxChars)) {
+      chunks.push(current.join('\n'));
+      current = [];
+      currentChars = 0;
+    }
+    current.push(line);
+    currentChars += line.length;
+  }
+  if (current.length > 0) chunks.push(current.join('\n'));
+  return chunks;
+}
+
+function splitBlockForCanvas(block) {
+  if (!block) return [];
+  if (typeof block === 'string') return [{ type: 'text', content: block }];
+
+  switch (block.type) {
+    case 'text':
+      return splitLongText(block.content ?? '', 1100).map((content) => ({ type: 'text', content }));
+    case 'callout':
+      return splitLongText(block.content ?? '', 850).map((content) => ({ type: 'callout', content }));
+    case 'list':
+      return splitLinesBlock(block.content ?? '', 6, 900).map((content) => ({ type: 'list', content }));
+    case 'code':
+      return splitLinesBlock(block.content ?? '', 12, 1200).map((content) => ({
+        type: 'code',
+        lang: block.lang,
+        content,
+      }));
+    default:
+      return [block];
+  }
+}
+
+function splitSectionForCanvas(section = {}) {
+  const body = Array.isArray(section.body) ? section.body : section.body ? [section.body] : [];
+  const dense = isDenseSection(section);
+  const maxChars = dense ? 1300 : 2400;
+  const slides = [];
+  let current = { ...section, body: [] };
+  let currentChars = collectTextLength(section.headline ?? '') + collectTextLength(section.imageAlt ?? '');
+
+  const pushCurrent = () => {
+    if (current.body.length > 0 || current.image || current.headline || current.body === '') {
+      slides.push(current);
+    }
+  };
+
+  for (const block of body) {
+    const pieces = splitBlockForCanvas(block);
+    for (const piece of pieces) {
+      const pieceChars = collectTextLength(piece);
+      if (current.body.length > 0 && currentChars + pieceChars > maxChars) {
+        pushCurrent();
+        current = { ...section, body: [], continued: true };
+        currentChars = collectTextLength(section.headline ?? '') + collectTextLength(section.imageAlt ?? '');
+      }
+      current.body.push(piece);
+      currentChars += pieceChars;
+    }
+  }
+
+  pushCurrent();
+  return slides.length > 0 ? slides : [{ ...section, body: [] }];
+}
+
 function expandSectionsForTables(sections, loadedImages, theme, layout, bodyFont, headlineFont, headlineLineHeight, bodyLineHeight) {
   const expanded = [];
   const availableHeight = layout.contentBottom - layout.contentTop;
@@ -908,6 +1085,93 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
 
   let slideNum = startSlideNum;
   for (const pageIndices of pages) {
+    // Sparse-slide fluid adaptation: measure content, then scale up typography for
+    // sparse slides so the content fills the slide more fully before centering.
+    let pageUsedH = 0;
+    for (let i = 0; i < pageIndices.length; i++) {
+      const si = pageIndices[i];
+      const section = sections[si];
+      const imgData = loadedImages[si];
+      if (i > 0 && !section.noGap) pageUsedH += sectionGap;
+      pageUsedH += measureSectionHeight(
+        section, headlineFont, bodyFont, headLH, bodyLH,
+        layout, codeStyle, imgData?.drawH ?? 0, SECTION_RENDER_DEPS,
+      );
+    }
+    const pageIsTextOnly = pageIndices.every((si) => {
+      const section = sections[si];
+      const imgData = loadedImages[si];
+      if (imgData) return false;
+      const body = normalizeBody(section.body) || [];
+      return body.every((seg) => seg.type === "text" || seg.type === "list");
+    });
+    const isSparse = isSparsePage(pageUsedH, AVAILABLE_H, 0.75);
+    const canFluid = isSparse && pageIsTextOnly;
+    console.log(`[sparse-layout-debug] slide=${slideNum} usedH=${pageUsedH} availH=${AVAILABLE_H} ratio=${(pageUsedH / AVAILABLE_H).toFixed(3)} canFluid=${canFluid}`);
+    const sparseFillTarget = 0.88;
+    const sparseScaleRaw = Math.min((AVAILABLE_H * sparseFillTarget) / pageUsedH, 1.75);
+    const sparsePanelPadY = Math.round(Math.min(34, AVAILABLE_H * 0.02));
+    const sparseFitMaxH = Math.max(0, AVAILABLE_H - 48 - (sparsePanelPadY * 2));
+    const measureSparsePageHeight = (scale) => {
+      const headlineScale = scale;
+      const bodyScale = scale;
+      const pgHeadlineFont = scale === 1 ? headlineFont : scaleFontString(headlineFont, headlineScale);
+      const pgBodyFont = scale === 1 ? bodyFont : scaleFontString(bodyFont, bodyScale);
+      const pgHeadLH = headLH;
+      const pgBodyLH = bodyLH;
+      const pgHeadlineToBody = headlineToBody;
+      const pgSectionGap = sectionGap;
+      const pgLayout = layout;
+      const pgCodeStyle = scale === 1 ? codeStyle : {
+        ...codeStyle,
+        codeFontSize: Math.round(codeStyle.codeFontSize * bodyScale),
+        codeLineHeight: codeStyle.codeLineHeight,
+      };
+      let h = 0;
+      for (let i = 0; i < pageIndices.length; i++) {
+        const si = pageIndices[i];
+        const section = sections[si];
+        const imgData = loadedImages[si];
+        if (i > 0 && !section.noGap) h += pgSectionGap;
+        h += measureSectionHeight(
+          section, pgHeadlineFont, pgBodyFont, pgHeadLH, pgBodyLH,
+          pgLayout, pgCodeStyle, imgData?.drawH ?? 0, SECTION_RENDER_DEPS,
+        );
+      }
+      return h;
+    };
+    const sparseScaleTarget = canFluid ? Math.max(sparseScaleRaw, 1.35) : 1;
+    const sparseScale = canFluid ? Math.min(fitScaleToHeight(measureSparsePageHeight, sparseFitMaxH, sparseScaleTarget, 1), 1.24) : 1;
+    const headlineScale = sparseScale;
+    const bodyScale = sparseScale;
+    const pgHeadlineFont = sparseScale === 1 ? headlineFont : scaleFontString(headlineFont, headlineScale);
+    const pgBodyFont = sparseScale === 1 ? bodyFont : scaleFontString(bodyFont, bodyScale);
+    const pgHeadLH = headLH;
+    const pgBodyLH = bodyLH;
+    const pgHeadlineToBody = headlineToBody;
+    const pgSectionGap = sectionGap;
+    const pgLayout = layout;
+    const pgCodeStyle = sparseScale === 1 ? codeStyle : {
+      ...codeStyle,
+      codeFontSize: Math.round(codeStyle.codeFontSize * bodyScale),
+      codeLineHeight: codeStyle.codeLineHeight,
+    };
+    let scaledPageUsedH = pageUsedH;
+    if (isSparse && sparseScale !== 1) {
+      scaledPageUsedH = 0;
+      for (let i = 0; i < pageIndices.length; i++) {
+        const si = pageIndices[i];
+        const section = sections[si];
+        const imgData = loadedImages[si];
+        if (i > 0 && !section.noGap) scaledPageUsedH += pgSectionGap;
+        scaledPageUsedH += measureSectionHeight(
+          section, pgHeadlineFont, pgBodyFont, pgHeadLH, pgBodyLH,
+          pgLayout, pgCodeStyle, imgData?.drawH ?? 0, SECTION_RENDER_DEPS,
+        );
+      }
+    }
+    const sparseOffset = 0;
+
     const firstSection = sections[pageIndices[0]] || {};
     const pageTheme = firstSection.theme
       ? resolveThemeConfig({
@@ -921,12 +1185,56 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
         })
       : theme;
     const { canvas, ctx } = createSlideCanvas(pageTheme, patternContext);
-    let y = layout.contentTop;
+
+    if (canFluid) {
+      const panelPadX = Math.round(Math.min(44, layout.contentWidth * 0.05));
+      const panelPadY = sparsePanelPadY;
+      const panelX = Math.max(24, layout.contentX - panelPadX);
+      const panelW = Math.min(TOKENS.canvas.width - panelX * 2, layout.contentWidth + panelPadX * 2);
+      const panelY = Math.max(24, layout.contentTop + sparseOffset - panelPadY);
+      const panelH = Math.min(AVAILABLE_H - 24 - panelY, scaledPageUsedH + panelPadY * 2);
+      const panelR = 28;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.38)";
+      ctx.shadowBlur = 36;
+      ctx.shadowOffsetY = 12;
+      ctx.fillStyle = pageTheme.card || pageTheme.background;
+      ctx.globalAlpha = 0.58;
+      ctx.strokeStyle = pageTheme.border || pageTheme.subtleForeground;
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      ctx.moveTo(panelX + panelR, panelY);
+      ctx.lineTo(panelX + panelW - panelR, panelY);
+      ctx.quadraticCurveTo(panelX + panelW, panelY, panelX + panelW, panelY + panelR);
+      ctx.lineTo(panelX + panelW, panelY + panelH - panelR);
+      ctx.quadraticCurveTo(panelX + panelW, panelY + panelH, panelX + panelW - panelR, panelY + panelH);
+      ctx.lineTo(panelX + panelR, panelY + panelH);
+      ctx.quadraticCurveTo(panelX, panelY + panelH, panelX, panelY + panelH - panelR);
+      ctx.lineTo(panelX, panelY + panelR);
+      ctx.quadraticCurveTo(panelX, panelY, panelX + panelR, panelY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 0.8;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      const glowY = panelY + Math.round(panelH * 0.24);
+      const glow = ctx.createRadialGradient(TOKENS.canvas.width * 0.5, glowY, 0, TOKENS.canvas.width * 0.5, glowY, Math.max(panelW, panelH) * 0.72);
+      glow.addColorStop(0, "rgba(255,255,255,0.10)");
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, TOKENS.canvas.width, TOKENS.canvas.height);
+      ctx.restore();
+    }
+
+    let y = layout.contentTop + sparseOffset;
 
     for (let i = 0; i < pageIndices.length; i++) {
       const section = sections[pageIndices[i]];
       const imgData = loadedImages[pageIndices[i]];
-      if (i > 0 && !section.noGap) y += sectionGap;
+      if (i > 0 && !section.noGap) y += pgSectionGap;
 
       // Image: draw above headline, scaled to fit
       if (imgData) {
@@ -950,33 +1258,33 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
         ctx.clip();
         ctx.drawImage(imgData.img, imgData.srcX, imgData.srcY, imgData.srcW, imgData.srcH, x, y, w, h);
         ctx.restore();
-        y += h + headlineToBody;
+        y += h + pgHeadlineToBody;
       }
 
       if (section.headline) {
-        const headW = antiWidowWidth(section.headline, headlineFont, layout.contentWidth);
+        const headW = antiWidowWidth(section.headline, pgHeadlineFont, layout.contentWidth);
         ctx.fillStyle = pageTheme.foreground;
-        ctx.font = headlineFont;
+        ctx.font = pgHeadlineFont;
         let hCursor = { segmentIndex: 0, graphemeIndex: 0 };
-        const headPrepared = prepareWithSegments(section.headline, headlineFont, { whiteSpace: "pre-wrap" });
+        const headPrepared = prepareWithSegments(section.headline, pgHeadlineFont, { whiteSpace: "pre-wrap" });
         while (true) {
           const line = layoutNextLine(headPrepared, hCursor, headW);
           if (line === null) break;
           ctx.fillText(line.text, layout.contentX, y);
           hCursor = line.end;
-          y += headLH;
+          y += pgHeadLH;
         }
-        y += headlineToBody;
+        y += pgHeadlineToBody;
       }
 
       y = await renderSectionBody({
         ctx,
         theme: pageTheme,
-        layout,
+        layout: pgLayout,
         section,
-        bodyFont,
-        bodyLineHeight: bodyLH,
-        codeStyle,
+        bodyFont: pgBodyFont,
+        bodyLineHeight: pgBodyLH,
+        codeStyle: pgCodeStyle,
         y,
         deps: SECTION_RENDER_DEPS,
       });
@@ -996,13 +1304,14 @@ async function main() {
   // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
   const args = process.argv.slice(2);
   const printUsage = () => {
-    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--easteregg] [--seed <value>] [--no-cover-kicker] [--help]");
+    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--type sm|md|lg|golden-ratio] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--easteregg] [--seed <value>] [--no-cover-kicker] [--help]");
   };
 
   const parseArgs = () => {
     let inputFile = null;
     let cliSpacing = null;
     let cliPalette = null;
+    let cliType = null;
     let cliOutput = "./output";
     let cliNoCoverKicker = false;
     let cliEasterEgg = false;
@@ -1013,13 +1322,14 @@ async function main() {
       if (arg === "-h" || arg === "--help") {
         return { help: true };
       }
-      if (arg === "--spacing" || arg === "--palette" || arg === "--output" || arg === "--seed") {
+      if (arg === "--spacing" || arg === "--palette" || arg === "--output" || arg === "--seed" || arg === "--typography" || arg === "--type") {
         const value = args[i + 1];
         if (!value || value.startsWith("--")) {
           throw new Error(`Missing value for ${arg}`);
         }
         if (arg === "--spacing") cliSpacing = value;
         else if (arg === "--palette") cliPalette = value;
+        else if (arg === "--typography" || arg === "--type") cliType = value;
         else if (arg === "--seed") cliSeed = value;
         else cliOutput = value;
         i++;
@@ -1042,7 +1352,7 @@ async function main() {
       inputFile = arg;
     }
 
-    return { inputFile, cliSpacing, cliPalette, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed };
+    return { inputFile, cliSpacing, cliPalette, cliType, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed };
   };
 
 
@@ -1060,7 +1370,7 @@ async function main() {
     process.exit(0);
   }
 
-  const { inputFile, cliSpacing, cliPalette, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed } = parsed;
+  const { inputFile, cliSpacing, cliPalette, cliType, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed } = parsed;
   if (!inputFile) {
     printUsage();
     process.exit(1);
@@ -1072,6 +1382,13 @@ async function main() {
   }
   if (cliPalette !== null && !COLOR_PALETTES[cliPalette]) {
     console.error(`Invalid --palette "${cliPalette}". Use one of: ${Object.keys(COLOR_PALETTES).join(", ")}.`);
+    printUsage();
+    process.exit(1);
+  }
+
+  const validTypeNames = [...Object.keys(TYPOGRAPHY_PRESETS), ...Object.keys(TYPOGRAPHY_SCALES)];
+  if (cliType !== null && !validTypeNames.includes(cliType)) {
+    console.error(`Invalid --type "${cliType}". Use one of: ${validTypeNames.join(", ")}.`);
     printUsage();
     process.exit(1);
   }
@@ -1109,9 +1426,12 @@ async function main() {
     contentEasterEgg: content.easterEgg,
     cliPalette,
     cliSpacing,
+    cliType,
     cliEasterEgg,
     cliSeed,
   });
+
+  TOKENS.type = theme.resolvedType || TOKENS.type;
 
   if (theme.easterEgg) {
     const remixPlan = composeBackgroundPatternPlan(theme, theme.easterEgg, patternContext);
@@ -1149,7 +1469,8 @@ async function main() {
     content.sections.map(s => s.image ? loadSectionImage(s.image, layout.contentWidth, layout.contentWidth, s.imageAspect ?? "free", s.imagePosition ?? "top") : Promise.resolve(null))
   );
 
-  const sections = expandSectionsForTables(content.sections, loadedImages, theme, layout, bodyFont, headlineFont, headLH, bodyLH);
+  const expandedSections = expandSectionsForTables(content.sections, loadedImages, theme, layout, bodyFont, headlineFont, headLH, bodyLH);
+  const sections = expandedSections.flatMap((section) => splitSectionForCanvas(section));
 
   const pages = planSectionPages(sections, {
     availableHeight: AVAILABLE_H,

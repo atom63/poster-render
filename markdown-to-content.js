@@ -386,7 +386,9 @@ function parseMarkdown(markdown, inputFile) {
     const image = isStandaloneImage(line);
     if (image) {
       flushBlock();
-      currentSection().image = image.src;
+      const section = currentSection();
+      section.image = image.src;
+      if (image.alt) section.imageAlt = image.alt;
       continue;
     }
 

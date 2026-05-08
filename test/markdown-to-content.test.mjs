@@ -41,6 +41,7 @@ Body text.
 
   const first = content.sections[0];
   assert.equal(first.image, './foo.png');
+  assert.equal(first.imageAlt, 'alt');
   assert.deepEqual(first.body.map((seg) => seg.type), ['callout', 'list', 'list', 'list', 'table']);
   assert.match(first.body[0].content, /Quote line one/);
   assert.match(first.body[1].content, /• item one/);

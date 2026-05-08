@@ -39,6 +39,7 @@
     "render-image.js",
     "render-pattern.js",
     "markdown-to-content.js",
+    "preview/",
     "README.md",
     "LICENSE",
     "docs/assets/reference",
@@ -49,13 +50,16 @@
     "help": "node render.js --help",
     "render": "node render.js content.json",
     "sample": "node render.js examples/sample-content.json --output ./output-sample",
+    "preview": "node preview/preview.mjs examples/sample-content.json --output ./preview.html",
+    "preview:export": "node preview/export-png.mjs examples/sample-content.json --output ./preview-export",
     "markdown:content": "node markdown-to-content.js",
-    "lint": "node --check render.js && node --check render-cover.js && node --check render-pagination.js && node --check render-emoji.js && node --check render-image.js && node --check render-pattern.js && node --check render-config.js && node --check render-segments.js && node --check render-table.js && node --check markdown-to-content.js",
+    "lint": "node --check render.js && node --check render-cover.js && node --check render-pagination.js && node --check render-emoji.js && node --check render-image.js && node --check render-pattern.js && node --check render-config.js && node --check render-segments.js && node --check render-table.js && node --check markdown-to-content.js && node --check preview/preview.mjs && node --check preview/export-png.mjs && node --check preview/render-blocks.mjs && node --check preview/render-slide.mjs",
     "test": "node --test test/*.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",
     "canvas": "^3.2.3",
+    "playwright": "^1.55.0",
     "shiki": "^4.0.2"
   }
 }

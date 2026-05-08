@@ -91,10 +91,41 @@ npm install
 ### Helpful scripts
 
 ```sh
-npm run help    # show CLI usage
-npm run sample  # render examples/sample-content.json into ./output-sample
-npm run lint    # basic syntax check for the CLI files
+npm run help     # show CLI usage
+npm run sample   # render examples/sample-content.json into ./output-sample
+npm run preview  # generate ./preview.html from the sample deck
+npm run preview:export  # optional HTML -> PNG export from the preview path
+npm run lint     # basic syntax check for the CLI files
 ```
+
+### Render paths
+
+`render.js` keeps the current canvas pipeline as the production default. That is
+still the command you should use for normal exports:
+
+```sh
+npm run render
+# or
+node render.js content.json --output ./output
+```
+
+The browser HTML path is opt-in and lives under `preview/` for review and
+experimentation:
+
+```sh
+node preview/preview.mjs examples/sample-content.json --output ./preview.html
+```
+
+If you want PNGs from the preview, use the explicit export step:
+
+```sh
+node preview/export-png.mjs examples/sample-content.json --output ./preview-export
+```
+
+The preview path renders the same slide order as the content JSON and uses semantic
+blocks for cover, section, callout, list, code, table, and image content.
+It is not the default renderer yet; only promote HTML export after parity is
+proven on representative decks.
 
 ### Custom fonts (optional)
 
@@ -144,6 +175,8 @@ They usually start a new slide when they would otherwise follow earlier content.
 | `--output <dir>` | any path | Output directory (default: `./output`) |
 | `--palette <name>` | see palettes | Override palette from CLI |
 | `--spacing <size>` | `sm` \| `md` \| `lg` | Override spacing from CLI |
+| `--typography <name>` | `sm` \| `md` \| `lg` \| `golden-ratio` | Override global typography scale from CLI |
+| `--type <name>` | same as `--typography` | Backward-compatible alias |
 | `--easteregg` | flag | Enable seeded background remix mode |
 | `--seed <value>` | any string | Seed for the easteregg remix |
 
@@ -155,8 +188,7 @@ node render.js content.json --palette dark --output ./out-dark
 
 ## Markdown adapter for agents
 
-Use Markdown as the *working* format for agent iteration, then convert it to
-`content.json` with the adapter script before rendering.
+Use Markdown for iteration, then convert to `content.json` before rendering.
 
 ```sh
 node markdown-to-content.js examples/sample-markdown.md --output content.json
@@ -165,35 +197,7 @@ npm run markdown:content -- examples/sample-markdown.md --output content.json
 npm run render
 ```
 
-Mapping rules are intentionally simple:
-
-- `#` → cover title
-- first paragraph after `#` → cover subtitle
-- `##` / `###` → section headlines
-- normal paragraphs → body text
-- `>` blockquotes → callout cards
-- `-`, `*`, `1.` lists → list cards
-- `- [ ]` / `- [x]` task lists → task-list text in list cards
-- fenced code blocks → code cards with safe wrapping for long tokens
-- pipe tables → aligned table cards rendered as real tables
-- standalone `![img](path)` → section image
-- `---` → optional section break
-- YAML frontmatter → ignored
-
-Tables render as real table cards.
-Tall tables paginate across slides with the header repeated on continuation pages.
-Code blocks wrap long tokens and expressions safely at the character level.
-Long identifiers stay inside the code card instead of overflowing.
-
-Example loop for OpenClaw / Hermes / Claude-style workflows:
-
-1. edit `*.md`
-2. run `node markdown-to-content.js <input.md> --output content.json`
-3. run `npm run render`
-4. inspect the PNG output and iterate
-
-This keeps `poster-render` focused on rendering JSON to PNG. Markdown is the
-universal adapter layer; other sources can stay separate and optional.
+This keeps `poster-render` focused on rendering JSON to PNG. Markdown stays the adapter layer; other sources can remain separate and optional.
 
 ## content.json schema
 
@@ -230,10 +234,11 @@ Turn it off with `cover.showKicker: false` in JSON or `--no-cover-kicker` on the
 
 ### Theme options
 
-You can tune the look in `theme` with these knobs:
+Theme knobs: `palette`, `fontFamily`, `spacing`, `typography`, `pattern`, `coverStyle`, color overrides, code sizing, and markdown theme tokens.
 - `palette` — overall color system
 - `fontFamily` — sans / serif / mono
 - `spacing` — compact / default / roomy layout
+- `typography` — global text scale preset (`sm` / `md` / `lg` / `golden-ratio`)
 - `pattern` — optional background texture
 - `coverStyle` — cover image treatment
 - color overrides — fine-tune individual colors when you need a custom look
@@ -253,49 +258,10 @@ You can tune the look in `theme` with these knobs:
 ```jsonc
 {
   "theme": {
-    // Palette (sets all colors; override individual keys below)
-    "palette": "light",        // "light" | "dark" | "warm" | "slate" | "paper" | "teal" | "midnight" | "clay"
-
-    // Typography
-    "fontFamily": "sans",      // "sans" | "serif" | "mono"
-
-    // Spacing
-    "spacing": "md",           // "sm" | "md" | "lg"
-
-    // Color overrides (any hex, overrides palette)
-    "background": "#FAFAF8",
-    "foreground": "#09090B",
-    "mutedForeground": "#71717A",
-    "subtleForeground": "#A1A1AA",
-    "accent": "#09090B",
-
-    // Markdown theming tokens
-    "borderAlpha": 0.15,
-    "gridAlpha": 0.12,
-    "calloutAccentAlpha": 0.6,
-    "headerTintAlpha": 0.05,
-    "cardBorderAlpha": 0.1,
-    "cardTintFallback": 0.18,
-    "codeTheme": "github-light",
-
-    // Background pattern
-    "pattern": "none",         // "none" | "dot-grid" | "line-grid" | "diagonal" | "halftone" | "dither" | "ascii" | "paper"
-    "patternOpacity": 0.08,
-    "patternColor": "#000000",
-    "patternSpacing": 48,
-    "patternVary": true,       // randomize ascii chars
-    "patternChars": "01 ·∙",   // custom char set for "ascii" pattern
-    "patternFontSize": 18,
-    "patternBlend": "source-over",  // CSS blend mode
-    "patternMask": "none",     // "none" | "top" | "bottom" | "left" | "right" | "radial" | "center-v" | "center-h" | "noise"
-
-    // Code block styling
-    "codeFontSize": 30,
-    "codeLineHeight": 48,
-    "codePadTop": 24,
-    "codePadBottom": 24,
-    "codePadLeft": 32,
-    "codePadRight": 32
+    "palette": "light",
+    "fontFamily": "sans",
+    "typography": "md",
+    "spacing": "md"
   }
 }
 ```

@@ -1,3 +1,10 @@
+// Returns true when the page's content height is below the sparse threshold,
+// indicating the slide has significant empty space and should be treated differently.
+export function isSparsePage(usedHeight, availableHeight, threshold = 0.5) {
+  if (!Number.isFinite(usedHeight) || !Number.isFinite(availableHeight) || availableHeight <= 0) return false;
+  return usedHeight / availableHeight < threshold;
+}
+
 export function planSectionPages(sections, {
   availableHeight,
   getSectionHeight,
