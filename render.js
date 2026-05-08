@@ -1383,6 +1383,10 @@ async function main() {
     printUsage();
     process.exit(1);
   }
+  if (cliJson && cliTemplate === null) {
+    console.error("Error: --json requires --template");
+    process.exit(2);
+  }
   if (cliTemplate !== null) {
     const VALID_TEMPLATES = ["minimal", "bold", "technical"];
     if (!VALID_TEMPLATES.includes(cliTemplate)) {
@@ -1458,6 +1462,10 @@ async function main() {
 
   tryRegisterFonts();
 
+  if (path.extname(inputFile).toLowerCase() === '.md') {
+    console.error("Error: .md input requires --template (e.g. --template bold)");
+    process.exit(2);
+  }
   const content = JSON.parse(fs.readFileSync(inputFile, "utf-8"));
   const resolvedTemplate = resolveTemplate(resolveTemplateName(content));
   content.template = resolvedTemplate.name;
