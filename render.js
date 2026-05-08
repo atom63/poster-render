@@ -1392,7 +1392,7 @@ async function main() {
 
     const resolvedInput = path.resolve(inputFile);
     let content;
-    if (inputFile.endsWith(".md")) {
+    if (path.extname(inputFile).toLowerCase() === '.md') {
       const markdown = fs.readFileSync(resolvedInput, "utf8");
       content = parseMarkdown(markdown, resolvedInput);
     } else {

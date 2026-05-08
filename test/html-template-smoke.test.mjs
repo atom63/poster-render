@@ -59,8 +59,9 @@ test('.md auto-detection via render.js CLI', async () => {
     const result = spawnSync(
       process.execPath,
       [path.resolve(RENDER_DIR, '../render.js'), tmpMd, '--template', 'minimal', '--output', tmpOut],
-      { cwd: path.resolve(RENDER_DIR, '..'), encoding: 'utf8' }
+      { cwd: path.resolve(RENDER_DIR, '..'), encoding: 'utf8', timeout: 60_000 }
     );
+    assert.ifError(result.error);
     assert.strictEqual(result.status, 0, `render.js exited ${result.status}: ${result.stderr}`);
     const files = fs.readdirSync(tmpOut).filter(f => f.endsWith('.png'));
     assert.ok(files.length > 0, 'Expected at least one PNG output');
