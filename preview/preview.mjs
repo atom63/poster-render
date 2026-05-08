@@ -23,6 +23,12 @@ const PREVIEW_TOKENS = {
 
 const PREVIEW_SEGMENT_PAD = { code: { top: 0, bottom: 0, left: 0, right: 0 } };
 
+const TEMPLATE_SHIKI_THEMES = {
+  minimal: 'github-light',
+  bold: 'tokyo-night',
+  technical: 'github-dark',
+};
+
 function usage() {
   console.error('Usage: node preview/preview.mjs [content.json] [--output preview.html]');
 }
@@ -96,16 +102,29 @@ function themeToCssVars(theme, tokens) {
   return Object.entries(vars).map(([key, value]) => `${key}: ${value};`).join(' ');
 }
 
-export async function buildPreviewDocument(content, { sourcePath = null, cssText = '', tokens = PREVIEW_TOKENS } = {}) {
+export async function buildPreviewDocument(content, { sourcePath = null, cssText = '', tokens = PREVIEW_TOKENS, template = null } = {}) {
   const resolvedTheme = resolveThemeConfig({
     TOKENS: tokens,
     SEGMENT_PAD: PREVIEW_SEGMENT_PAD,
     contentTheme: content?.theme ?? {},
     colorPalettes: COLOR_PALETTES,
   });
+
+  if (template && TEMPLATE_SHIKI_THEMES[template]) {
+    resolvedTheme.codeTheme = TEMPLATE_SHIKI_THEMES[template];
+  }
+
+  let templateCss = '';
+  if (template) {
+    const templatePath = path.resolve(MODULE_DIR, 'templates', `${template}.css`);
+    if (fs.existsSync(templatePath)) {
+      templateCss = fs.readFileSync(templatePath, 'utf8');
+    }
+  }
+
   const sourceDir = content?.sourceDir ?? (sourcePath ? path.dirname(sourcePath) : process.cwd());
-  const deck = await renderPreviewDeck({ ...content, theme: resolvedTheme }, { sourceDir });
-  const style = `${cssText}\n:root { ${themeToCssVars(resolvedTheme, tokens)} }`;
+  const deck = await renderPreviewDeck({ ...content, theme: resolvedTheme }, { sourceDir, template });
+  const style = `${cssText}\n:root { ${themeToCssVars(resolvedTheme, tokens)} }\n${templateCss}`;
   const title = content?.cover?.title ? String(content.cover.title) : 'poster-render preview';
   return `<!doctype html>
 <html lang="en">

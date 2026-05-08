@@ -262,5 +262,8 @@ export async function buildPreviewSlides(content, { sourceDir = process.cwd(), t
 
 export async function renderPreviewDeck(content, options = {}) {
   const sourceDir = options.sourceDir ?? process.cwd();
-  return `<main class="deck" aria-label="poster-render HTML preview">${(await buildPreviewSlides(content, { sourceDir, theme: options.theme ?? content?.theme ?? null })).join('')}</main>`;
+  const theme = options.theme ?? content?.theme ?? null;
+  const template = options.template ?? null;
+  const templateAttr = template ? ` data-template="${escapeHtml(template)}"` : '';
+  return `<main class="deck"${templateAttr} aria-label="poster-render HTML preview">${(await buildPreviewSlides(content, { sourceDir, theme })).join('')}</main>`;
 }
