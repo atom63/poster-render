@@ -1,0 +1,55 @@
+[data-template="technical"] {
+  --deck-card-bg: #0D1117;
+  --deck-card-fg: #E6EDF3;
+  --deck-accent: #58A6FF;
+  --deck-muted: #7D8590;
+  --deck-subtle: #484F58;
+  --deck-border: #30363D;
+  --deck-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --deck-font-display: Menlo, Consolas, "Courier New", monospace;
+  --deck-callout-bg: rgba(88, 166, 255, 0.08);
+  --deck-callout-border: #58A6FF;
+  --deck-code-bg: #161B22;
+  --deck-code-border: #30363D;
+  --deck-table-border: #30363D;
+  --deck-table-header-bg: rgba(255, 255, 255, 0.04);
+}
+
+/* Dot grid background on every slide */
+[data-template="technical"] .slide {
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.07) 1.5px,
+    transparent 1.5px
+  );
+  background-size: 24px 24px;
+}
+
+/* ▸ prefix on kicker lines */
+[data-template="technical"] .cover-kicker::before,
+[data-template="technical"] .section-kicker::before {
+  content: "▸ ";
+  color: var(--deck-accent);
+}
+
+[data-template="technical"] .cover-kicker,
+[data-template="technical"] .section-kicker {
+  font-family: var(--deck-font-display);
+  font-size: calc(var(--deck-small-size) * 0.85);
+  letter-spacing: 0.06em;
+}
+
+/* Footer: counter left, green ● live dot right */
+[data-template="technical"] .slide-footer {
+  left: var(--deck-pad-x);
+  right: var(--deck-pad-x);
+  justify-content: space-between;
+  font-family: var(--deck-font-display);
+  font-size: calc(var(--deck-small-size) * 0.8);
+}
+
+[data-template="technical"] .slide-footer::after {
+  content: "● live";
+  color: #3FB950;
+  letter-spacing: 0.04em;
+}
