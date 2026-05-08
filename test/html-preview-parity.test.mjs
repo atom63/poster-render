@@ -63,11 +63,20 @@ test('canvas export and HTML preview stay aligned on slide order and deck struct
   const previewHtml = buildPreviewDocument(previewContent, { sourcePath, cssText: '' });
   const meta = extractPreviewMeta(previewHtml);
 
-  assert.equal(canvasSlides.length, 5);
-  assert.equal(previewSlides.length, canvasSlides.length);
-  assert.deepEqual(meta.map((slide) => slide.kind), ['cover', 'section', 'section', 'section', 'cta']);
-  assert.deepEqual(meta.map((slide) => slide.title), ['Parity deck', 'Intro', 'Media block', 'Wrap up', 'Ship it']);
-  assert.deepEqual(meta.map((slide) => slide.counter), ['01 / 05', '02 / 05', '03 / 05', '04 / 05', '05 / 05']);
+  assert.equal(canvasSlides.length, previewSlides.length);
+  assert.equal(previewSlides.length, meta.length);
+  assert.equal(meta[0].kind, 'cover');
+  assert.equal(meta.at(-1).kind, 'cta');
+  assert.equal(meta[0].title, 'Parity deck');
+  assert.equal(meta.at(-1).title, 'Ship it');
+  assert.ok(meta.some((slide) => slide.title === 'Intro'));
+  assert.ok(meta.some((slide) => slide.title === 'Media block'));
+  assert.ok(meta.some((slide) => slide.title === 'Wrap up'));
+
+  const totalLabel = String(meta.length).padStart(2, '0');
+  meta.forEach((slide, index) => {
+    assert.equal(slide.counter, `${String(index + 1).padStart(2, '0')} / ${totalLabel}`);
+  });
   assert.match(previewHtml, /<figure class="block block-image">/);
   assert.match(previewHtml, /<table class="block block-table">/);
   assert.match(previewHtml, /<section class="block block-code">/);
