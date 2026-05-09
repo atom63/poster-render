@@ -27,3 +27,12 @@ test-screenshot.jpg
 
 # Git worktrees
 .worktrees/
+
+# npm lockfile (project uses pnpm)
+package-lock.json
+
+# Local working content (personal test files)
+content.json
+
+# Superpowers brainstorm artifacts
+.superpowers/
