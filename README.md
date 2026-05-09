@@ -34,11 +34,11 @@ poster-render deck.md --template bold --json
 
 Three CSS visual identities for the HTML render path:
 
-| Template | Feel | Background | Accent |
-|----------|------|------------|--------|
-| `minimal` | Editorial, thought leadership | `#FAF9F6` cream | `#111111` black |
-| `bold` | Campaign, product launches | `#111111` dark | `#FF3B30` red |
-| `technical` | Engineering blog, devtools | `#0D1117` midnight | `#58A6FF` blue |
+| Template | Feel | Cover | Content |
+|----------|------|-------|---------|
+| `minimal` | Editorial, thought leadership | <img src="docs/assets/reference/templates/minimal/slide-01.png" width="260" alt="minimal cover" /> | <img src="docs/assets/reference/templates/minimal/slide-02.png" width="260" alt="minimal content" /> |
+| `bold` | Campaign, product launches | <img src="docs/assets/reference/templates/bold/slide-01.png" width="260" alt="bold cover" /> | <img src="docs/assets/reference/templates/bold/slide-02.png" width="260" alt="bold content" /> |
+| `technical` | Engineering blog, devtools | <img src="docs/assets/reference/templates/technical/slide-01.png" width="260" alt="technical cover" /> | <img src="docs/assets/reference/templates/technical/slide-02.png" width="260" alt="technical content" /> |
 
 ```sh
 poster-render content.json --template minimal --output ./slides
