@@ -24,3 +24,6 @@ test-screenshot.jpg
 
 # Claude Code
 .claude/
+
+# Git worktrees
+.worktrees/

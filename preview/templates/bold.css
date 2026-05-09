@@ -1,0 +1,59 @@
+[data-template="bold"] {
+  --deck-card-bg: #111111;
+  --deck-card-fg: #FFFFFF;
+  --deck-accent: #FF3B30;
+  --deck-muted: rgba(255, 255, 255, 0.5);
+  --deck-subtle: rgba(255, 255, 255, 0.3);
+  --deck-border: rgba(255, 255, 255, 0.08);
+  --deck-shadow: 0 40px 120px rgba(0, 0, 0, 0.5);
+  --deck-font-display: "Helvetica Neue", Arial, sans-serif;
+  --deck-callout-bg: rgba(255, 59, 48, 0.12);
+  --deck-callout-border: #FF3B30;
+  --deck-code-bg: rgba(255, 255, 255, 0.06);
+  --deck-code-border: rgba(255, 255, 255, 0.1);
+  --deck-table-border: rgba(255, 255, 255, 0.12);
+  --deck-table-header-bg: rgba(255, 255, 255, 0.06);
+}
+
+[data-template="bold"] .cover-title {
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.05em;
+}
+
+[data-template="bold"] .cover-kicker,
+[data-template="bold"] .section-kicker {
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+/* Accent circle decoration clipped by slide overflow:hidden */
+[data-template="bold"] .slide-cover::before {
+  content: "";
+  position: absolute;
+  top: -80px;
+  right: -80px;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background: var(--deck-accent);
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Full-width accent color bar footer */
+[data-template="bold"] .slide-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 88px;
+  background: var(--deck-accent);
+  padding: 0 var(--deck-pad-x);
+  display: flex;
+  align-items: center;
+  color: #ffffff;
+  border-radius: 0 0 var(--deck-radius) var(--deck-radius);
+}

@@ -1,0 +1,39 @@
+[data-template="minimal"] {
+  --deck-card-bg: #FAF9F6;
+  --deck-card-fg: #111111;
+  --deck-accent: #111111;
+  --deck-muted: #888888;
+  --deck-subtle: #BBBBBB;
+  --deck-border: rgba(17, 17, 20, 0.07);
+  --deck-shadow: 0 2px 24px rgba(17, 17, 20, 0.06);
+  --deck-radius: 0px;
+  --deck-font-display: Georgia, "Times New Roman", serif;
+  --deck-callout-bg: transparent;
+  --deck-callout-border: rgba(17, 17, 20, 0.35);
+  --deck-code-bg: rgba(17, 17, 20, 0.04);
+  --deck-code-border: rgba(17, 17, 20, 0.07);
+}
+
+/* Thin horizontal rule above cover title */
+[data-template="minimal"] .cover-hero::before {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 2px;
+  background: var(--deck-accent);
+  margin-bottom: 20px;
+}
+
+/* Callout: left border only, no background tint */
+[data-template="minimal"] .block-callout {
+  border-radius: 0;
+  padding-left: 24px;
+  padding-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Code blocks: square-ish corners */
+[data-template="minimal"] .block-code {
+  border-radius: 8px;
+}

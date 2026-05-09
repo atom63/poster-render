@@ -179,6 +179,26 @@ They usually start a new slide when they would otherwise follow earlier content.
 | `--type <name>` | same as `--typography` | Backward-compatible alias |
 | `--easteregg` | flag | Enable seeded background remix mode |
 | `--seed <value>` | any string | Seed for the easteregg remix |
+| `--template <name>` | `minimal` \| `bold` \| `technical` | Use HTML+Playwright render path with named template |
+| `--json` | flag | Write structured JSON result to stdout (`{"slides":[…],"count":N,"template":"…","output":"…"}`) |
+
+## Templates
+
+Templates are CSS-only visual identities for the HTML render path (`--template` flag). Each template sets a distinct background, accent color, and typographic feel without touching the content structure.
+
+| Template | Feel | Background | Accent |
+|----------|------|------------|--------|
+| `minimal` | Thought leadership, editorial | `#FAF9F6` cream | `#111111` black |
+| `bold` | Campaign, product launches | `#111111` dark | `#FF3B30` red |
+| `technical` | Engineering blog, devtools | `#0D1117` midnight | `#58A6FF` blue |
+
+```sh
+# Human use
+poster-render content.json --template minimal --output ./slides
+
+# Agent pipeline (Markdown input, JSON output)
+poster-render deck.md --template bold --json
+```
 
 **Example:**
 

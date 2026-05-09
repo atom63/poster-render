@@ -30,6 +30,13 @@
   --deck-font-sans: Helvetica Neue, Helvetica, Arial, sans-serif;
   --deck-font-serif: Georgia, Times New Roman, serif;
   --deck-font-mono: Menlo, Consolas, monospace;
+  --deck-font-display: var(--deck-font-sans);
+  --deck-callout-bg: rgba(17, 17, 20, 0.05);
+  --deck-callout-border: rgba(17, 17, 20, 0.55);
+  --deck-code-bg: rgba(17, 17, 20, 0.06);
+  --deck-code-border: rgba(17, 17, 20, 0.1);
+  --deck-table-border: rgba(17, 17, 20, 0.12);
+  --deck-table-header-bg: rgba(17, 17, 20, 0.05);
 }
 
 * {
@@ -109,6 +116,7 @@ body {
   line-height: var(--deck-title-line);
   font-weight: 800;
   letter-spacing: -0.05em;
+  font-family: var(--deck-font-display);
 }
 
 .cover-subtitle,
@@ -137,6 +145,7 @@ body {
   line-height: var(--deck-headline-line);
   font-weight: 700;
   letter-spacing: -0.04em;
+  font-family: var(--deck-font-display);
 }
 
 .slide-body,
@@ -172,12 +181,11 @@ body {
 .block-callout {
   padding: 26px 28px;
   border-radius: 24px;
-  border-left: 6px solid rgba(17, 17, 20, 0.55);
-  background: rgba(17, 17, 20, 0.05);
+  border-left: 6px solid var(--deck-callout-border);
+  background: var(--deck-callout-bg);
   font-size: var(--deck-body-size);
   line-height: var(--deck-body-line);
 }
-
 .block-callout p {
   margin: 0;
 }
@@ -214,8 +222,8 @@ body {
 .block-code {
   padding: 24px 28px;
   border-radius: 24px;
-  background: rgba(17, 17, 20, 0.06);
-  border: 1px solid rgba(17, 17, 20, 0.1);
+  background: var(--deck-code-bg);
+  border: 1px solid var(--deck-code-border);
   display: grid;
   gap: 12px;
 }
@@ -242,18 +250,18 @@ body {
   line-height: 1.38;
   overflow: hidden;
   border-radius: 22px;
-  border: 1px solid rgba(17, 17, 20, 0.12);
+  border: 1px solid var(--deck-table-border);
 }
 
 .block-table th,
 .block-table td {
   padding: 16px 18px;
-  border-bottom: 1px solid rgba(17, 17, 20, 0.1);
+  border-bottom: 1px solid var(--deck-table-border);
   vertical-align: top;
 }
 
 .block-table thead th {
-  background: rgba(17, 17, 20, 0.05);
+  background: var(--deck-table-header-bg);
   font-weight: 700;
 }
 

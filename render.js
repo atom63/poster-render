@@ -3,7 +3,7 @@ import { createCanvas, registerFont, loadImage } from "canvas";
 import { createHighlighter } from "shiki";
 import fs from "fs";
 import path from "path";
-import { pathToFileURL } from "url";
+import { pathToFileURL, fileURLToPath } from "url";
 import {
   COLOR_PALETTES,
   SPACING_PRESETS,
@@ -41,6 +41,8 @@ import { loadSectionImage } from "./render-image.js";
 import { planSectionPages, isSparsePage } from "./render-pagination.js";
 import { composeBackgroundPatternPlan, deriveDeckIdentity, renderBackgroundPattern } from "./render-pattern.js";
 import { renderCover } from "./render-cover.js";
+import { parseMarkdown } from "./markdown-to-content.js";
+const RENDER_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // --- Shiki syntax highlighter (lazy, cached by theme) ---
 const _shikiCache = {};
@@ -1098,7 +1100,7 @@ async function renderContentSlides(sections, theme, layout, startSlideNum, total
     });
     const isSparse = isSparsePage(pageUsedH, AVAILABLE_H, 0.75);
     const canFluid = isSparse && pageIsTextOnly;
-    console.log(`[sparse-layout-debug] slide=${slideNum} usedH=${pageUsedH} availH=${AVAILABLE_H} ratio=${(pageUsedH / AVAILABLE_H).toFixed(3)} canFluid=${canFluid}`);
+    console.error(`[sparse-layout-debug] slide=${slideNum} usedH=${pageUsedH} availH=${AVAILABLE_H} ratio=${(pageUsedH / AVAILABLE_H).toFixed(3)} canFluid=${canFluid}`);
     const sparseFillTarget = 0.88;
     const sparseScaleRaw = Math.min((AVAILABLE_H * sparseFillTarget) / pageUsedH, 1.75);
     const sparsePanelPadY = Math.round(Math.min(34, AVAILABLE_H * 0.02));
@@ -1295,7 +1297,7 @@ async function main() {
   // Parse args: node render.js <file> [--spacing sm|md|lg] [--output <dir>]
   const args = process.argv.slice(2);
   const printUsage = () => {
-    console.error("Usage: node render.js <content.json> [--spacing sm|md|lg] [--type sm|md|lg|golden-ratio] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--easteregg] [--seed <value>] [--no-cover-kicker] [--help]");
+    console.error("Usage: node render.js <content.json|deck.md> [--template minimal|bold|technical] [--spacing sm|md|lg] [--type sm|md|lg|golden-ratio] [--palette light|dark|warm|slate|paper|teal|midnight|clay] [--output <dir>] [--json] [--easteregg] [--seed <value>] [--no-cover-kicker] [--help]");
   };
 
   const parseArgs = () => {
@@ -1307,6 +1309,8 @@ async function main() {
     let cliNoCoverKicker = false;
     let cliEasterEgg = false;
     let cliSeed = null;
+    let cliTemplate = null;
+    let cliJson = false;
 
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
@@ -1334,6 +1338,19 @@ async function main() {
         cliNoCoverKicker = true;
         continue;
       }
+      if (arg === "--template") {
+        const value = args[i + 1];
+        if (!value || value.startsWith("--")) {
+          throw new Error(`Missing value for ${arg}`);
+        }
+        cliTemplate = value;
+        i++;
+        continue;
+      }
+      if (arg === "--json") {
+        cliJson = true;
+        continue;
+      }
       if (arg.startsWith("--")) {
         throw new Error(`Unknown option ${arg}`);
       }
@@ -1343,7 +1360,7 @@ async function main() {
       inputFile = arg;
     }
 
-    return { inputFile, cliSpacing, cliPalette, cliType, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed };
+    return { inputFile, cliSpacing, cliPalette, cliType, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed, cliTemplate, cliJson };
   };
 
 
@@ -1361,11 +1378,70 @@ async function main() {
     process.exit(0);
   }
 
-  const { inputFile, cliSpacing, cliPalette, cliType, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed } = parsed;
+  const { inputFile, cliSpacing, cliPalette, cliType, cliOutput, cliNoCoverKicker, cliEasterEgg, cliSeed, cliTemplate, cliJson } = parsed;
   if (!inputFile) {
     printUsage();
     process.exit(1);
   }
+  if (cliJson && cliTemplate === null) {
+    console.error("Error: --json requires --template");
+    process.exit(2);
+  }
+  if (cliTemplate !== null) {
+    const VALID_TEMPLATES = ["minimal", "bold", "technical"];
+    if (!VALID_TEMPLATES.includes(cliTemplate)) {
+      console.error(`Invalid --template "${cliTemplate}". Use one of: ${VALID_TEMPLATES.join(", ")}.`);
+      process.exit(2);
+    }
+
+    const resolvedInput = path.resolve(inputFile);
+    let content;
+    if (path.extname(inputFile).toLowerCase() === '.md') {
+      const markdown = fs.readFileSync(resolvedInput, "utf8");
+      content = parseMarkdown(markdown, resolvedInput);
+    } else {
+      content = JSON.parse(fs.readFileSync(resolvedInput, "utf8"));
+    }
+    if (!content.sourceDir) {
+      content.sourceDir = path.dirname(resolvedInput);
+    }
+
+    const autoCoverKicker = estimateCoverKicker(content);
+    const cover = content.cover || {};
+    content.cover = {
+      ...cover,
+      kicker: (cliNoCoverKicker || cover.showKicker === false)
+        ? null
+        : (cover.kicker && String(cover.kicker).trim() ? cover.kicker : autoCoverKicker),
+    };
+
+    const { exportPreviewPng } = await import("./preview/export-png.mjs");
+    const cssText = fs.readFileSync(path.resolve(RENDER_DIR, "preview", "preview.css"), "utf8");
+    const outDir = path.resolve(cliOutput);
+
+    let files;
+    try {
+      files = await exportPreviewPng(content, {
+        sourcePath: resolvedInput,
+        outputDir: outDir,
+        cssText,
+        template: cliTemplate,
+      });
+    } catch (err) {
+      console.error(err);
+      process.exit(3);
+    }
+
+    if (cliJson) {
+      process.stdout.write(
+        JSON.stringify({ slides: files, count: files.length, template: cliTemplate, output: outDir }) + "\n"
+      );
+    } else {
+      console.error(`Rendered ${files.length} slides → ${outDir}`);
+    }
+    return;
+  }
+
   if (cliSpacing !== null && !SPACING_PRESETS[cliSpacing]) {
     console.error(`Invalid --spacing "${cliSpacing}". Use sm, md, or lg.`);
     printUsage();
@@ -1386,6 +1462,10 @@ async function main() {
 
   tryRegisterFonts();
 
+  if (path.extname(inputFile).toLowerCase() === '.md') {
+    console.error("Error: .md input requires --template (e.g. --template bold)");
+    process.exit(2);
+  }
   const content = JSON.parse(fs.readFileSync(inputFile, "utf-8"));
   const resolvedTemplate = resolveTemplate(resolveTemplateName(content));
   content.template = resolvedTemplate.name;
@@ -1513,7 +1593,7 @@ async function main() {
     fs.writeFileSync(path.join(outDir, `slide-${num}.png`), allSlides[i].toBuffer("image/png"));
   }
 
-  console.log(`Rendered ${allSlides.length} slides → ${outDir}`);
+  console.error(`Rendered ${allSlides.length} slides → ${outDir}`);
 }
 
 const entryPath = process.argv[1] ? fs.realpathSync(process.argv[1]) : null;

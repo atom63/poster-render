@@ -14,7 +14,7 @@ function usage() {
 }
 
 function parseArgs(argv) {
-  const args = { input: null, output: 'preview-export', help: false };
+  const args = { input: null, output: 'preview-export', help: false, template: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '-h' || arg === '--help') {
@@ -23,6 +23,10 @@ function parseArgs(argv) {
       const next = argv[++i];
       if (!next || next.startsWith('-')) throw new Error('--output requires a directory path');
       args.output = next;
+    } else if (arg === '--template') {
+      const next = argv[++i];
+      if (!next || next.startsWith('-')) throw new Error('--template requires a template name');
+      args.template = next;
     } else if (!arg.startsWith('-') && !args.input) {
       args.input = arg;
     } else if (!arg.startsWith('-')) {
@@ -49,9 +53,9 @@ async function waitForAssets(page) {
   });
 }
 
-export async function exportPreviewPng(content, { sourcePath = null, outputDir = 'preview-export', cssText = '' } = {}) {
+export async function exportPreviewPng(content, { sourcePath = null, outputDir = 'preview-export', cssText = '', template = null } = {}) {
   const resolvedCssText = cssText || fs.readFileSync(path.resolve(MODULE_DIR, 'preview.css'), 'utf8');
-  const html = await buildPreviewDocument(content, { sourcePath, cssText: resolvedCssText });
+  const html = await buildPreviewDocument(content, { sourcePath, cssText: resolvedCssText, template });
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'poster-render-preview-export-'));
   const htmlPath = path.join(tempDir, 'preview.html');
   fs.writeFileSync(htmlPath, html);
@@ -100,7 +104,7 @@ async function main() {
   const { content, inputPath: resolvedInput } = loadPreviewContent(inputPath);
   const cssPath = path.resolve(MODULE_DIR, 'preview.css');
   const cssText = fs.readFileSync(cssPath, 'utf8');
-  const files = await exportPreviewPng(content, { sourcePath: resolvedInput, outputDir, cssText });
+  const files = await exportPreviewPng(content, { sourcePath: resolvedInput, outputDir, cssText, template: args.template });
   console.error(`[preview-export] wrote ${files.length} PNG files to ${outputDir}`);
 }
 
