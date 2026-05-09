@@ -15,7 +15,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: latest
+          version: 10
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
@@ -37,6 +37,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build canvas native addon
+        run: pnpm rebuild canvas
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
