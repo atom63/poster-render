@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPreviewDocument } from '../preview/preview.mjs';
 import { exportPreviewPng } from '../preview/export-png.mjs';
-import { parseMarkdown } from '../markdown-to-content.js';
+import { parseMarkdown } from '../src/markdown-to-content.js';
 
 const RENDER_DIR = path.dirname(fileURLToPath(import.meta.url));
 

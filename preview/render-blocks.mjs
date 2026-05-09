@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHighlighter } from 'shiki';
-import { normalizeShikiLang, resolveShikiThemeName } from '../shiki-utils.js';
+import { normalizeShikiLang, resolveShikiThemeName } from '../src/shiki-utils.js';
 
 export function escapeHtml(value) {
   return String(value)

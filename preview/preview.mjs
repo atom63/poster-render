@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { COLOR_PALETTES, SPACING_PRESETS, resolveThemeConfig } from '../render-config.js';
+import { COLOR_PALETTES, SPACING_PRESETS, resolveThemeConfig } from '../src/render-config.js';
 import { renderPreviewDeck } from './render-slide.mjs';
 import { escapeHtml } from './render-blocks.mjs';
 

@@ -9,7 +9,7 @@ import {
   TYPOGRAPHY_SCALES,
   resolveTypography,
   resolveThemeConfig,
-} from '../render-config.js';
+} from '../src/render-config.js';
 
 const repo = process.cwd();
 const nodeBin = process.execPath;

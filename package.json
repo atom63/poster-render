@@ -30,16 +30,7 @@
   },
   "files": [
     "render.js",
-    "render-config.js",
-    "render-segments.js",
-    "render-table.js",
-    "render-cover.js",
-    "render-pagination.js",
-    "render-emoji.js",
-    "render-image.js",
-    "render-pattern.js",
-    "markdown-to-content.js",
-    "shiki-utils.js",
+    "src/",
     "preview/",
     "README.md",
     "LICENSE",
@@ -58,7 +49,7 @@
     "preview:technical": "node preview/dev-server.mjs examples/sample-content.json --template technical",
     "preview:export": "node preview/export-png.mjs examples/sample-content.json --output ./preview-export",
     "markdown:content": "node markdown-to-content.js",
-    "lint": "node --check render.js && node --check render-cover.js && node --check render-pagination.js && node --check render-emoji.js && node --check render-image.js && node --check render-pattern.js && node --check render-config.js && node --check render-segments.js && node --check render-table.js && node --check markdown-to-content.js && node --check preview/preview.mjs && node --check preview/export-png.mjs && node --check preview/render-blocks.mjs && node --check preview/render-slide.mjs",
+    "lint": "node --check render.js && node --check src/render-cover.js && node --check src/render-pagination.js && node --check src/render-emoji.js && node --check src/render-image.js && node --check src/render-pattern.js && node --check src/render-config.js && node --check src/render-segments.js && node --check src/render-table.js && node --check src/markdown-to-content.js && node --check preview/preview.mjs && node --check preview/export-png.mjs && node --check preview/render-blocks.mjs && node --check preview/render-slide.mjs",
     "test": "node --test test/*.mjs"
   },
   "pnpm": {

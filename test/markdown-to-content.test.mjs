@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMarkdown } from '../markdown-to-content.js';
+import { parseMarkdown } from '../src/markdown-to-content.js';
 
 test('parses common markdown blocks into poster content', () => {
   const md = `---

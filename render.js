@@ -17,8 +17,8 @@ import {
   resolveTypography,
   TYPOGRAPHY_PRESETS,
   TYPOGRAPHY_SCALES,
-} from "./render-config.js";
-import { normalizeShikiLang, resolveShikiThemeName } from "./shiki-utils.js";
+} from "./src/render-config.js";
+import { normalizeShikiLang, resolveShikiThemeName } from "./src/shiki-utils.js";
 import {
   SEGMENT_PAD,
   SEGMENT_GAP,
@@ -26,22 +26,22 @@ import {
   normalizeBody,
   measureSectionHeight,
   renderSectionBody,
-} from "./render-segments.js";
+} from "./src/render-segments.js";
 import {
   splitTableIntoChunks as splitTableIntoChunksTable,
   renderTableChunk as renderTableChunkTable,
   measureTableSegmentHeight as measureTableSegmentHeightTable,
-} from "./render-table.js";
+} from "./src/render-table.js";
 import {
   EMOJI_ASCII_FALLBACK,
   isEmoji,
   loadEmojiImage,
-} from "./render-emoji.js";
-import { loadSectionImage } from "./render-image.js";
-import { planSectionPages, isSparsePage } from "./render-pagination.js";
-import { composeBackgroundPatternPlan, deriveDeckIdentity, renderBackgroundPattern } from "./render-pattern.js";
-import { renderCover } from "./render-cover.js";
-import { parseMarkdown } from "./markdown-to-content.js";
+} from "./src/render-emoji.js";
+import { loadSectionImage } from "./src/render-image.js";
+import { planSectionPages, isSparsePage } from "./src/render-pagination.js";
+import { composeBackgroundPatternPlan, deriveDeckIdentity, renderBackgroundPattern } from "./src/render-pattern.js";
+import { renderCover } from "./src/render-cover.js";
+import { parseMarkdown } from "./src/markdown-to-content.js";
 const RENDER_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // --- Shiki syntax highlighter (lazy, cached by theme) ---

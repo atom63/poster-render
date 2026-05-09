@@ -6,9 +6,9 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createCanvas, loadImage } from 'canvas';
 import { countWrappedCodeLines, measureCodeHeight, estimateCoverKicker } from '../render.js';
-import { planSectionPages } from '../render-pagination.js';
-import { loadSectionImage } from '../render-image.js';
-import { measureSectionHeight } from '../render-segments.js';
+import { planSectionPages } from '../src/render-pagination.js';
+import { loadSectionImage } from '../src/render-image.js';
+import { measureSectionHeight } from '../src/render-segments.js';
 
 const repo = process.cwd();
 const nodeBin = process.execPath;
@@ -84,7 +84,7 @@ test('renders markdown tables as real tables and paginates tall ones', () => {
   const markdown = `# Table demo\nIntro paragraph.\n\n## Tall table\nSome context before the table.\n\n| Name | Value |\n| :--- | ---: |\n${rows}\n`;
 
   fs.writeFileSync(mdPath, markdown);
-  execFileSync(nodeBin, ['markdown-to-content.js', mdPath, '--output', contentJson], { cwd: repo, stdio: 'pipe' });
+  execFileSync(nodeBin, ['src/markdown-to-content.js', mdPath, '--output', contentJson], { cwd: repo, stdio: 'pipe' });
   const parsed = JSON.parse(fs.readFileSync(contentJson, 'utf8'));
   const tableSection = parsed.sections.find((section) => section.headline === 'Tall table');
   assert.ok(tableSection, 'expected tall table section to exist');
@@ -275,7 +275,7 @@ test('markdown adapter preserves relative image paths through sourceDir', async 
   const markdown = `# Relative image test\n\n![cover-ish](./asset.png)\n`;
   fs.writeFileSync(markdownPath, markdown);
 
-  execFileSync(nodeBin, ['markdown-to-content.js', markdownPath, '--output', contentPath], { cwd: repo, stdio: 'pipe' });
+  execFileSync(nodeBin, ['src/markdown-to-content.js', markdownPath, '--output', contentPath], { cwd: repo, stdio: 'pipe' });
   const parsed = JSON.parse(fs.readFileSync(contentPath, 'utf8'));
   assert.equal(parsed.sourceDir, sourceDir);
 
