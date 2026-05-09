@@ -61,6 +61,9 @@
     "lint": "node --check render.js && node --check render-cover.js && node --check render-pagination.js && node --check render-emoji.js && node --check render-image.js && node --check render-pattern.js && node --check render-config.js && node --check render-segments.js && node --check render-table.js && node --check markdown-to-content.js && node --check preview/preview.mjs && node --check preview/export-png.mjs && node --check preview/render-blocks.mjs && node --check preview/render-slide.mjs",
     "test": "node --test test/*.mjs"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["canvas"]
+  },
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",
     "canvas": "^3.2.3",

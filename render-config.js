@@ -157,7 +157,28 @@ export const TEMPLATE_REGISTRY = {
   },
 };
 
-import { normalizeEastereggConfig } from "./render-pattern.js";
+function _normalizeSeedToken(value) {
+  if (value == null) return null;
+  const token = String(value).trim();
+  return token || null;
+}
+
+export function normalizeEastereggConfig(value, { enabled = null, seed = null, intensity = null } = {}) {
+  const raw = value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : value === true
+      ? {}
+      : null;
+  const requestedMode = raw?.mode;
+  const requestedEnabled = enabled ?? (value === true || requestedMode === 'random-patterns' || raw?.enabled === true);
+  if (!requestedEnabled) return null;
+  if (enabled !== true && (value === false || requestedMode === 'off')) return null;
+  return {
+    mode: 'random-patterns',
+    seed: _normalizeSeedToken(seed ?? raw?.seed ?? raw?.easterEggSeed),
+    intensity: (intensity ?? raw?.intensity) === 'medium' ? 'medium' : 'low',
+  };
+}
 
 export function resolveThemeNumber(value, fallback) {
   const n = Number(value);

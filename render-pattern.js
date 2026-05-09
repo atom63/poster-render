@@ -1,4 +1,5 @@
 import { createCanvas } from 'canvas';
+export { normalizeEastereggConfig } from './render-config.js';
 
 const ALL_PATTERNS = ['none', 'dot-grid', 'line-grid', 'diagonal', 'halftone', 'dither', 'ascii', 'paper'];
 const DENSE_PATTERNS = new Set(['dither', 'ascii']);
@@ -84,25 +85,6 @@ export function deriveDeckIdentity(content = {}) {
   return JSON.stringify(stableSortKeys(deck));
 }
 
-export function normalizeEastereggConfig(value, { enabled = null, seed = null, intensity = null } = {}) {
-  const raw = value && typeof value === 'object' && !Array.isArray(value)
-    ? value
-    : value === true
-      ? {}
-      : null;
-
-  const requestedMode = raw?.mode;
-  const requestedEnabled = enabled ?? (value === true || requestedMode === 'random-patterns' || raw?.enabled === true);
-  if (!requestedEnabled) return null;
-  if (enabled !== true && (value === false || requestedMode === 'off')) return null;
-
-  const normalizedSeed = normalizeSeedToken(seed ?? raw?.seed ?? raw?.easterEggSeed);
-  return {
-    mode: 'random-patterns',
-    seed: normalizedSeed,
-    intensity: normalizeIntensity(intensity ?? raw?.intensity),
-  };
-}
 
 function buildLayerFromTheme(theme = {}, overrides = {}) {
   const pattern = sanitizePattern(overrides.pattern ?? theme.pattern);
