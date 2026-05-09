@@ -9,7 +9,7 @@ Open source and MIT licensed, with a small surface area designed to be easy to e
 ## Install
 
 ```sh
-npm install
+pnpm install
 ```
 
 When published globally, the package exposes:
@@ -31,7 +31,7 @@ cp examples/sample-content.json content.json
 2. Render it:
 
 ```sh
-npm run render
+pnpm render
 # or
 npx poster-render content.json
 ```
@@ -85,17 +85,17 @@ survives conversion: headings, lists, blockquotes, code fences, and tables.
 ## Setup
 
 ```sh
-npm install
+pnpm install
 ```
 
 ### Helpful scripts
 
 ```sh
-npm run help     # show CLI usage
-npm run sample   # render examples/sample-content.json into ./output-sample
-npm run preview  # generate ./preview.html from the sample deck
-npm run preview:export  # optional HTML -> PNG export from the preview path
-npm run lint     # basic syntax check for the CLI files
+pnpm help     # show CLI usage
+pnpm sample   # render examples/sample-content.json into ./output-sample
+pnpm preview  # generate ./preview.html from the sample deck
+pnpm preview:export  # optional HTML -> PNG export from the preview path
+pnpm lint     # basic syntax check for the CLI files
 ```
 
 ### Render paths
@@ -104,7 +104,7 @@ npm run lint     # basic syntax check for the CLI files
 still the command you should use for normal exports:
 
 ```sh
-npm run render
+pnpm render
 # or
 node render.js content.json --output ./output
 ```
@@ -149,7 +149,7 @@ Emoji are rendered through Twemoji PNGs when possible, but offline or blocked ne
 ## Usage
 
 ```sh
-npm run render                          # renders content.json → ./output/
+pnpm render                          # renders content.json → ./output/
 node render.js <content.json> \
   [--help] [--spacing sm|md|lg] [--palette light|dark|warm|slate|paper|teal|midnight|clay] \
   [--output <dir>] [--easteregg] [--seed <value>] # explicit file + options
@@ -211,10 +211,10 @@ node render.js content.json --palette dark --output ./out-dark
 Use Markdown for iteration, then convert to `content.json` before rendering.
 
 ```sh
-node markdown-to-content.js examples/sample-markdown.md --output content.json
+node src/markdown-to-content.js examples/sample-markdown.md --output content.json
 # or
-npm run markdown:content -- examples/sample-markdown.md --output content.json
-npm run render
+pnpm markdown:content -- examples/sample-markdown.md --output content.json
+pnpm render
 ```
 
 This keeps `poster-render` focused on rendering JSON to PNG. Markdown stays the adapter layer; other sources can remain separate and optional.
@@ -390,7 +390,7 @@ It is publishable as-is; the remaining work is mainly release automation if you 
 ## Contributing
 
 Small patches are preferred.
-Run `npm test` and `npm run lint` before sending a PR.
+Run `pnpm test` and `pnpm lint` before sending a PR.
 Keep `README.md` aligned with the actual CLI behavior and sample assets.
 
 ## Credit
