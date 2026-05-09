@@ -7,8 +7,9 @@
   --deck-border: rgba(255, 255, 255, 0.08);
   --deck-shadow: 0 40px 120px rgba(0, 0, 0, 0.5);
   --deck-font-display: "Helvetica Neue", Arial, sans-serif;
+  --deck-footer-height: 88px;
   --deck-callout-bg: rgba(255, 59, 48, 0.12);
-  --deck-callout-border: #FF3B30;
+  --deck-callout-border: var(--deck-accent);
   --deck-code-bg: rgba(255, 255, 255, 0.06);
   --deck-code-border: rgba(255, 255, 255, 0.1);
   --deck-table-border: rgba(255, 255, 255, 0.12);
@@ -49,7 +50,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 88px;
+  height: var(--deck-footer-height);
   background: var(--deck-accent);
   padding: 0 var(--deck-pad-x);
   display: flex;

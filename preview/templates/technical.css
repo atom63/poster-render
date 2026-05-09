@@ -7,8 +7,9 @@
   --deck-border: #30363D;
   --deck-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   --deck-font-display: Menlo, Consolas, "Courier New", monospace;
+  --deck-accent-green: #3FB950;
   --deck-callout-bg: rgba(88, 166, 255, 0.08);
-  --deck-callout-border: #58A6FF;
+  --deck-callout-border: var(--deck-accent);
   --deck-code-bg: #161B22;
   --deck-code-border: #30363D;
   --deck-table-border: #30363D;
@@ -50,6 +51,6 @@
 
 [data-template="technical"] .slide-footer::after {
   content: "● live";
-  color: #3FB950;
+  color: var(--deck-accent-green);
   letter-spacing: 0.04em;
 }

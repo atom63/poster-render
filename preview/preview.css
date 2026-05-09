@@ -1,7 +1,14 @@
 :root {
   color-scheme: light;
+
+  /* ── Slide dimensions ── */
   --slide-width: 1080px;
   --slide-height: 1350px;
+
+  /* ── Primitive ── */
+  --deck-fg-raw: 17, 17, 20;
+
+  /* ── Color ── */
   --deck-bg: #f2f2ef;
   --deck-fg: #111114;
   --deck-muted: #70707a;
@@ -9,34 +16,48 @@
   --deck-accent: #111114;
   --deck-card-bg: #ffffff;
   --deck-card-fg: #111114;
-  --deck-border: rgba(17, 17, 20, 0.12);
-  --deck-shadow: 0 40px 120px rgba(17, 17, 20, 0.14);
+  --deck-border: rgba(var(--deck-fg-raw), 0.12);
+  --deck-shadow: 0 40px 120px rgba(var(--deck-fg-raw), 0.14);
+
+  /* ── Shape ── */
   --deck-radius: 34px;
+  --deck-block-radius: 24px;
+
+  /* ── Spacing ── */
   --deck-pad-x: 100px;
   --deck-pad-y: 100px;
   --deck-gap: 32px;
+  --deck-footer-height: 52px;
+
+  /* ── Typography sizes ── */
   --deck-title-size: 108px;
   --deck-subtitle-size: 34px;
   --deck-headline-size: 52px;
   --deck-body-size: 34px;
   --deck-small-size: 22px;
   --deck-code-size: 30px;
+
+  /* ── Typography line heights ── */
   --deck-title-line: 1.18;
   --deck-subtitle-line: 1.53;
   --deck-headline-line: 1.35;
   --deck-body-line: 1.5;
   --deck-small-line: 1.55;
   --deck-code-line: 1.5;
+
+  /* ── Fonts ── */
   --deck-font-sans: Helvetica Neue, Helvetica, Arial, sans-serif;
   --deck-font-serif: Georgia, Times New Roman, serif;
   --deck-font-mono: Menlo, Consolas, monospace;
   --deck-font-display: var(--deck-font-sans);
-  --deck-callout-bg: rgba(17, 17, 20, 0.05);
-  --deck-callout-border: rgba(17, 17, 20, 0.55);
-  --deck-code-bg: rgba(17, 17, 20, 0.06);
-  --deck-code-border: rgba(17, 17, 20, 0.1);
-  --deck-table-border: rgba(17, 17, 20, 0.12);
-  --deck-table-header-bg: rgba(17, 17, 20, 0.05);
+
+  /* ── Block colors ── */
+  --deck-callout-bg: rgba(var(--deck-fg-raw), 0.05);
+  --deck-callout-border: rgba(var(--deck-fg-raw), 0.55);
+  --deck-code-bg: rgba(var(--deck-fg-raw), 0.06);
+  --deck-code-border: rgba(var(--deck-fg-raw), 0.1);
+  --deck-table-border: rgba(var(--deck-fg-raw), 0.12);
+  --deck-table-header-bg: rgba(var(--deck-fg-raw), 0.05);
 }
 
 * {
@@ -180,7 +201,7 @@ body {
 
 .block-callout {
   padding: 26px 28px;
-  border-radius: 24px;
+  border-radius: var(--deck-block-radius);
   border-left: 6px solid var(--deck-callout-border);
   background: var(--deck-callout-bg);
   font-size: var(--deck-body-size);
@@ -221,7 +242,7 @@ body {
 
 .block-code {
   padding: 24px 28px;
-  border-radius: 24px;
+  border-radius: var(--deck-block-radius);
   background: var(--deck-code-bg);
   border: 1px solid var(--deck-code-border);
   display: grid;
@@ -249,7 +270,7 @@ body {
   font-size: 28px;
   line-height: 1.38;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: var(--deck-block-radius);
   border: 1px solid var(--deck-table-border);
 }
 
@@ -283,7 +304,7 @@ body {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 24px;
+  border-radius: var(--deck-block-radius);
   object-fit: cover;
   border: 1px solid rgba(17, 17, 20, 0.1);
 }
@@ -297,7 +318,7 @@ body {
 .slide-footer {
   position: absolute;
   right: var(--deck-pad-x);
-  bottom: 52px;
+  bottom: var(--deck-footer-height);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -335,8 +356,8 @@ body {
   --deck-code-size: 22px;
 }
 
-.slide--dense .slide-footer {
-  bottom: 66px;
+.slide--dense {
+  --deck-footer-height: 66px;
 }
 
 .slide--dense .section-header {
