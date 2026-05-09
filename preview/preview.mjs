@@ -30,11 +30,11 @@ const TEMPLATE_SHIKI_THEMES = {
 };
 
 function usage() {
-  console.error('Usage: node preview/preview.mjs [content.json] [--output preview.html]');
+  console.error('Usage: node preview/preview.mjs [content.json] [--template minimal|bold|technical] [--output preview.html] [--watch]');
 }
 
 function parseArgs(argv) {
-  const args = { input: null, output: 'preview.html', help: false };
+  const args = { input: null, output: 'preview.html', template: null, watch: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '-h' || arg === '--help') {
@@ -43,6 +43,12 @@ function parseArgs(argv) {
       const next = argv[++i];
       if (!next || next.startsWith('-')) throw new Error('--output requires a file path');
       args.output = next;
+    } else if (arg === '--template') {
+      const next = argv[++i];
+      if (!next || next.startsWith('-')) throw new Error('--template requires a name (minimal, bold, technical)');
+      args.template = next;
+    } else if (arg === '--watch') {
+      args.watch = true;
     } else if (!arg.startsWith('-') && !args.input) {
       args.input = arg;
     } else if (!arg.startsWith('-')) {
@@ -150,13 +156,25 @@ async function main() {
 
   const inputPath = args.input ? path.resolve(args.input) : path.resolve(MODULE_DIR, '../examples/sample-content.json');
   const outputPath = path.resolve(args.output);
-  const { content, inputPath: resolvedInput } = loadPreviewContent(inputPath);
   const cssPath = path.resolve(MODULE_DIR, 'preview.css');
   const cssText = fs.readFileSync(cssPath, 'utf8');
-  const html = await buildPreviewDocument(content, { sourcePath: resolvedInput, cssText });
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, html);
-  console.error(`[preview] wrote ${outputPath}`);
+
+  async function build() {
+    const { content, inputPath: resolvedInput } = loadPreviewContent(inputPath);
+    const html = await buildPreviewDocument(content, { sourcePath: resolvedInput, cssText, template: args.template });
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, html);
+    console.error(`[preview] wrote ${outputPath}`);
+  }
+
+  await build();
+
+  if (args.watch) {
+    console.error(`[preview] watching ${inputPath} for changes…`);
+    fs.watch(inputPath, async () => {
+      try { await build(); } catch (e) { console.error(`[preview] rebuild error: ${e.message}`); }
+    });
+  }
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
