@@ -89,6 +89,15 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`[dev] port ${args.port} is already in use — kill the old process with:\n  lsof -ti:${args.port} | xargs kill`);
+  } else {
+    console.error(`[dev] server error: ${e.message}`);
+  }
+  process.exit(1);
+});
+
 server.listen(args.port, () => {
   const templateLabel = args.template ? ` --template ${args.template}` : '';
   console.error(`[dev] http://localhost:${args.port}${templateLabel}`);
